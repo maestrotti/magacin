@@ -47,12 +47,11 @@ async function all(q){let o=[],i=0;for(;;){const{data,error}=await q().range(i,i
 const up=()=>me.role==='upravnik';
 async function ens(tb,val,list,ex={}){let f=list.find(x=>x.name.toLowerCase()===val.toLowerCase());if(f)return f;const{data,error}=await sb.from(tb).insert({name:val,...ex}).select().single();if(error)throw error;list.push(data);return data}
 async function init(){const{data:{session}}=await sb.auth.getSession();session?boot():authView()}
-const MAILS={senad:'o.senad@pobjeda.com',belmin:'k.belmin@pobjeda.com'};
 function authView(){
  root.innerHTML=`<div class="auth"><h1>📦 Praćenje magacina</h1><div class="card"><form id="f">
- <label>Korisničko ime</label><input id="em" required autocomplete="username" autocapitalize="none" autocorrect="off" placeholder="senad ili belmin"><label>Lozinka</label><input id="pw" type="password" required autocomplete="current-password">
+ <label>Korisničko ime</label><input id="em" required autocomplete="username" autocapitalize="none" autocorrect="off" placeholder="korisničko ime ili e-mail"><label>Lozinka</label><input id="pw" type="password" required autocomplete="current-password">
  <button class="btn">Prijava</button></form></div></div>`;
- $('#f').onsubmit=async e=>{e.preventDefault();const u=$('#em').value.trim().toLowerCase(),email=u.includes('@')?u:(MAILS[u]||u+'@pobjeda.com'),password=$('#pw').value;
+ $('#f').onsubmit=async e=>{e.preventDefault();const u=$('#em').value.trim().toLowerCase(),email=u.includes('@')?u:u+'@pobjeda.com',password=$('#pw').value;
   const{error}=await sb.auth.signInWithPassword({email,password});if(error)return toast('Pogrešno korisničko ime ili lozinka');boot()}}
 async function boot(){try{
  const{data:{user}}=await sb.auth.getUser();
