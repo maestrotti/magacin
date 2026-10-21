@@ -72,6 +72,7 @@ function vUnos(){const v=$('#v'),mag=plants.find(p=>p.is_main),mid=()=>mag?.id,s
  if(!mid()){v.innerHTML='<p class="mu">Nema glavnog magacina u bazi.</p>';return}
  v.innerHTML=`<div class="card"><div class="seg"><button class="in ${type==='in'?'on':''}" data-ty="in">⬇ Ulaz</button><button class="out ${type==='out'?'on':''}" data-ty="out">⬆ Izlaz</button></div>
  <label id="dl">Datum ${type==='in'?'ulaza':'izlaza'}</label><input id="dt" type="date" value="${new Date().toISOString().slice(0,10)}">
+ <label>Magacin</label><input value="Magacin" readonly>
  <div id="dw"></div>
  <label>Kupac</label><input id="cu" list="cl" placeholder="odaberi ili upiši novog"><datalist id="cl">${customers.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist>
  <label>Šifra artikla</label><input id="co" list="pl2" placeholder="npr. LP-1"><datalist id="pl2">${products.map(p=>`<option value="${esc(p.name)}">`).join('')}</datalist>
