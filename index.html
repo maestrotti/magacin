@@ -37,7 +37,7 @@ details.card summary{list-style:none;cursor:pointer}details.card summary::-webki
 .ov{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:20}
 </style></head><body><div id="toast"></div><div id="root"></div>
 <script>
-const SUPABASE_URL='https://TVOJ-PROJEKAT.supabase.co', SUPABASE_KEY='TVOJ_ANON_KEY';
+const SUPABASE_URL='https://jdwoukromsnjhbzuuwmg.supabase.co', SUPABASE_KEY='sb_publishable_t06ANgBontBuGUtC_DXQCQ_jgx2XZmx';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=s=>document.querySelector(s),root=$('#root');
 const fmt=n=>Number(n||0).toLocaleString('bs-BA'),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),fd=d=>d.split('-').reverse().join('.');
