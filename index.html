@@ -58,7 +58,8 @@ async function boot(){try{
  me=(await sb.from('profiles').select('*,plants(name)').eq('id',user.id).single()).data;
  [customers,products,plants]=await Promise.all([all(()=>sb.from('customers').select('*').order('name')),all(()=>sb.from('products').select('*').order('name')),all(()=>sb.from('plants').select('*').order('name'))]);
  myp=up()?plants:((await sb.from('user_plants').select('plants(id,name)')).data||[]).map(x=>x.plants);tab=up()?'pogoni':'unos';await loadAll();shell()}catch(e){toast(e.message);authView()}}
-async function loadAll(){[stock,mov]=await Promise.all([all(()=>sb.from('v_stock').select('*').order('customer')),all(()=>sb.from('movements').select('*,customers(name),products(name),plants(name)').order('date',{ascending:false}).order('created_at',{ascending:false}))])}
+async function loadAll(){[stock,mov]=await Promise.all([all(()=>sb.from('v_stock').select('*').order('customer')),all(()=>sb.from('movements').select('*,customers(name),products(name),plants(name)').order('date',{ascending:false}).order('created_at',{ascending:false}))]);
+ if(!up()){const mid=plants.find(p=>p.is_main)?.id;stock=stock.filter(s=>s.plant_id===mid);mov=mov.filter(m=>m.plant_id===mid)}}
 const tabs=()=>up()?[['pogoni','🏭','Pogoni'],['kupci','🏢','Kupci'],['proizvodi','📦','Artikli'],['otprema','🚚','Otprema'],['evid','🗓','Historija']]:[['unos','📦','Magacin'],['stanje','📊','Stanje'],['evid','🗓','Historija']];
 function shell(){root.innerHTML=`<header><div><b>📦 Magacin</b><small>${esc(me.full_name||me.email)} · ${up()?'Upravnik':'Magacin'}</small></div><button id="lo">Odjava</button></header>
  <main id="v"></main><nav>${tabs().map(t=>`<button data-t="${t[0]}" class="${t[0]===tab?'on':''}"><span>${t[1]}</span>${t[2]}</button>`).join('')}</nav>`;
@@ -67,32 +68,35 @@ function shell(){root.innerHTML=`<header><div><b>📦 Magacin</b><small>${esc(me
 const view=()=>({unos:vUnos,stanje:vStanje,evid:vEvid,pogoni:()=>vGroup('plant'),kupci:()=>vGroup('customer'),proizvodi:()=>vGroup('product'),otprema:vOtprema})[tab]();
 const same=(s,m)=>m.plant_id===s.plant_id&&m.customer_id===s.customer_id&&m.product_id===s.product_id&&(m.serija||'')===s.serija;
 const inR=m=>(!rg.f||m.date>=rg.f)&&(!rg.t||m.date<=rg.t);
-function vUnos(){const v=$('#v'),ser=[...new Set(mov.map(m=>m.serija).filter(Boolean))],pid=()=>$('#pg')?$('#pg').value:myp[0]?.id;
+function vUnos(){const v=$('#v'),mag=plants.find(p=>p.is_main),mid=()=>mag?.id,ser=[...new Set(mov.map(m=>m.serija).filter(Boolean))],dest=plants.filter(p=>!p.is_main);
+ if(!mid()){v.innerHTML='<p class="mu">Nema glavnog magacina u bazi.</p>';return}
  v.innerHTML=`<div class="card"><div class="seg"><button class="in ${type==='in'?'on':''}" data-ty="in">⬇ Ulaz</button><button class="out ${type==='out'?'on':''}" data-ty="out">⬆ Izlaz</button></div>
  <label id="dl">Datum ${type==='in'?'ulaza':'izlaza'}</label><input id="dt" type="date" value="${new Date().toISOString().slice(0,10)}">
- ${myp.length>1?`<label>Pogon</label><select id="pg">${myp.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select>`:''}
+ <div id="dw"></div>
  <label>Kupac</label><input id="cu" list="cl" placeholder="odaberi ili upiši novog"><datalist id="cl">${customers.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist>
  <label>Šifra artikla</label><input id="co" list="pl2" placeholder="npr. LP-1"><datalist id="pl2">${products.map(p=>`<option value="${esc(p.name)}">`).join('')}</datalist>
  <label>Serija</label><input id="se" list="sl" placeholder="broj serije"><datalist id="sl">${ser.map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
  <label>Količina (kom)</label><input id="qt" type="number" inputmode="numeric" min="1">
  <label>Nalog / napomena (nije obavezno)</label><input id="nt"><div class="hint" id="h" style="display:none"></div><button class="btn" id="sv">Spremi</button></div>`;
  const low=i=>$('#'+i).value.trim().toLowerCase(),
-  find=()=>stock.find(x=>x.plant_id===pid()&&x.customer.toLowerCase()===low('cu')&&x.product.toLowerCase()===low('co')&&x.serija.toLowerCase()===low('se')),
+  find=()=>stock.find(x=>x.plant_id===mid()&&x.customer.toLowerCase()===low('cu')&&x.product.toLowerCase()===low('co')&&x.serija.toLowerCase()===low('se')),
+  drawDest=()=>{$('#dw').innerHTML=type==='out'?`<label>Pogon (kuda ide)</label><select id="dst">${dest.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select>`:''},
   upd=()=>{const c=low('cu'),p=low('co'),s=find(),h=$('#h');if(!h)return;
    h.style.display=c&&p?'block':'none';
-   h.innerHTML=type==='out'?(s&&s.stanje>0?`Na stanju: ${fmt(s.stanje)} kom`:'<span class="out">Nema tog artikla na stanju u ovom pogonu</span>'):`Trenutno stanje: ${fmt(s?.stanje)} kom`};
- ['cu','co','se','pg'].forEach(i=>{const e=$('#'+i);if(e){e.oninput=upd;e.onchange=upd}});upd();
- v.querySelectorAll('[data-ty]').forEach(b=>b.onclick=()=>{type=b.dataset.ty;v.querySelectorAll('[data-ty]').forEach(x=>x.classList.toggle('on',x===b));$('#dl').textContent='Datum '+(type==='in'?'ulaza':'izlaza');upd()});
+   h.innerHTML=type==='out'?(s&&s.stanje>0?`Na stanju u magacinu: ${fmt(s.stanje)} kom`:'<span class="out">Nema tog artikla na stanju u magacinu</span>'):`Trenutno stanje: ${fmt(s?.stanje)} kom`};
+ drawDest();['cu','co','se'].forEach(i=>{const e=$('#'+i);if(e){e.oninput=upd;e.onchange=upd}});upd();
+ v.querySelectorAll('[data-ty]').forEach(b=>b.onclick=()=>{type=b.dataset.ty;v.querySelectorAll('[data-ty]').forEach(x=>x.classList.toggle('on',x===b));$('#dl').textContent='Datum '+(type==='in'?'ulaza':'izlaza');drawDest();upd()});
  $('#sv').onclick=async()=>{try{const cn=$('#cu').value.trim(),pn=$('#co').value.trim(),se=$('#se').value.trim(),q=+$('#qt').value;
-  if(!cn||!pn||!q)return toast('Upiši kupca, šifru artikla i količinu');if(!pid())return toast('Račun nema pogon');
+  if(!cn||!pn||!q)return toast('Upiši kupca, šifru artikla i količinu');
   const s=find();
   if(type==='out'){
-   if(!s||s.stanje<=0)return toast('Nema tog artikla na stanju');
+   if(!s||s.stanje<=0)return toast('Nema tog artikla na stanju u magacinu');
+   const to=$('#dst')?.value;if(!to)return toast('Odaberi pogon');
    if(q>s.stanje)return toast(`Izlaz (${fmt(q)}) je veći od stanja (${fmt(s.stanje)})`);
-   const{error}=await sb.rpc('izlaz',{p_plant:pid(),p_customer:s.customer_id,p_product:s.product_id,p_serija:s.serija,p_qty:q,p_date:$('#dt').value,p_note:$('#nt').value.trim()||null});if(error)throw error;
+   const{error}=await sb.rpc('izlaz',{p_plant:mid(),p_to:to,p_customer:s.customer_id,p_product:s.product_id,p_serija:s.serija,p_qty:q,p_date:$('#dt').value,p_note:$('#nt').value.trim()||null});if(error)throw error;
    await loadAll();toast(q>=s.stanje?'✅ Skinuto sa stanja – ostalo 0 kom':`✅ Izlaz spremljen – ostalo ${fmt(s.stanje-q)} kom`);return vUnos()}
   const c=await ens('customers',cn,customers),p=await ens('products',pn,products);
-  const{error}=await sb.from('movements').insert({date:$('#dt').value,plant_id:pid(),customer_id:c.id,product_id:p.id,serija:se,qty_in:q,qty_out:0,note:$('#nt').value.trim()||null});if(error)throw error;
+  const{error}=await sb.from('movements').insert({date:$('#dt').value,plant_id:mid(),customer_id:c.id,product_id:p.id,serija:se,qty_in:q,qty_out:0,note:$('#nt').value.trim()||null});if(error)throw error;
   await loadAll();toast('✅ Spremljeno');vUnos()}catch(e){toast(e.message)}}}
 function dlg(t,inf,body,go,bt,ok){const o=document.createElement('div');o.className='ov';o.innerHTML=`<div class="card" style="width:min(420px,92vw)"><b>${t}</b><div class="mu">${inf}</div>${body}<button class="btn" id="tg">${bt||'Prebaci'}</button><button class="link" id="tx">Odustani</button></div>`;document.body.appendChild(o);
  $('#tx').onclick=()=>o.remove();$('#tg').onclick=async()=>{try{await go();o.remove();await loadAll();toast(ok||'✅ Prebačeno');view()}catch(e){toast(e.message)}}}
@@ -136,7 +140,7 @@ function vGroup(dim){const v=$('#v'),cols={plant:['customer','product','serija']
 function vOtprema(){const v=$('#v');
  v.innerHTML=`<div class="card"><div class="grid3" style="grid-template-columns:1fr 1fr"><div><label>Od</label><input id="f" type="date" value="${rg.f}"></div><div><label>Do</label><input id="t" type="date" value="${rg.t}"></div></div></div><div id="l"></div>`;
  const draw=()=>{const d=mov.filter(m=>(m.kind==='otprema'||m.kind==='izlaz')&&inR(m)),tot=d.reduce((a,m)=>a+m.qty_out,0);
-  $('#l').innerHTML=`<div class="card hero"><div class="mu">IZLAZI I OTPREMA</div><div class="huge">${fmt(tot)} <small>kom</small></div></div>`+(d.map(m=>`<div class="card"><div class="row"><div><b>${fd(m.date)}</b> · pogon ${esc(m.plants.name)}<div class="mu">${esc(m.customers.name)} · ${esc(m.products.name)}${m.serija?' · '+esc(m.serija):''}${m.kind==='izlaz'?' · <span class="tag">izlaz</span>':''}</div></div><div><span class="big out">${fmt(m.qty_out)}</span>${act(m)}</div></div></div>`).join('')||'<p class="mu">Nema izlaza u odabranom periodu.</p>');bind()};
+  $('#l').innerHTML=`<div class="card hero"><div class="mu">IZLAZI I OTPREMA</div><div class="huge">${fmt(tot)} <small>kom</small></div></div>`+(d.map(m=>`<div class="card"><div class="row"><div><b>${fd(m.date)}</b> · pogon ${esc(m.plants.name)}<div class="mu">${esc(m.customers.name)} · ${esc(m.products.name)}${m.serija?' · '+esc(m.serija):''}${m.kind==='izlaz'?' · <span class="tag">izlaz</span>':''}${m.note?`<div>${esc(m.note)}</div>`:''}</div></div><div><span class="big out">${fmt(m.qty_out)}</span>${act(m)}</div></div></div>`).join('')||'<p class="mu">Nema izlaza u odabranom periodu.</p>');bind()};
  ['f','t'].forEach(i=>$('#'+i).onchange=e=>{rg[i]=e.target.value;draw()});draw()}
 sb.auth.onAuthStateChange(e=>{if(e==='SIGNED_OUT')authView()});init();
 </script></body></html>

@@ -4,6 +4,12 @@ alter table movements add column if not exists transfer_id uuid;
 insert into plants(name,is_main) values('Glavni magacin',true)
   on conflict ((lower(name))) do update set is_main=true;
 
+-- vođa radi u glavnom magacinu
+insert into user_plants(user_id, plant_id)
+select pr.id, pl.id from profiles pr join plants pl on pl.is_main
+where lower(pr.email)='k.belmin@pobjeda.com'
+on conflict do nothing;
+
 -- ===== IZLAZ, PREBACIVANJE I KOREKCIJE (bez ruta) =====
 
 -- vođa direktno može upisati samo ULAZ; izlaz ide isključivo preko funkcije izlaz()
@@ -19,7 +25,6 @@ select m.plant_id, p.name plant, m.customer_id, c.name customer, m.product_id, p
   max(m.date) filter (where m.kind in ('promet','pogon') and m.qty_in>0) last_in,
   max(m.date) filter (where m.kind in ('promet','pogon','otprema','izlaz') and m.qty_out>0) last_out
 from movements m join plants p on p.id=m.plant_id join customers c on c.id=m.customer_id join products pr on pr.id=m.product_id
-where not p.is_main
 group by 1,2,3,4,5,6,7;
 
 create or replace function transfer_stock(p_plant uuid, p_product uuid, p_serija text, p_from uuid, p_to uuid, p_qty int default null)
@@ -38,20 +43,23 @@ end $$;
 
 drop function if exists transfer_plants(uuid,uuid,uuid,uuid,text,int);
 
--- IZLAZ: skida količinu sa stanja izabranog pogona/kupca; transakcija ostaje u historiji. Bez ruta.
+-- IZLAZ: skida količinu sa stanja magacina, a u historiji pamti u koji je pogon otišlo.
 drop function if exists izlaz(uuid, uuid, uuid, uuid, text, int, date, text);
-create or replace function izlaz(p_plant uuid, p_customer uuid, p_product uuid, p_serija text, p_qty int,
+drop function if exists izlaz(uuid, uuid, uuid, text, int, date, text);
+create or replace function izlaz(p_plant uuid, p_customer uuid, p_product uuid, p_serija text, p_qty int, p_to uuid,
   p_date date default current_date, p_note text default null)
 returns void language plpgsql security definer set search_path=public as $$
-declare st int; s text := coalesce(p_serija,'');
+declare st int; s text := coalesce(p_serija,''); tn text;
 begin
-  if not can_plant(p_plant) then raise exception 'Nemate pravo na ovaj pogon'; end if;
+  if not can_plant(p_plant) then raise exception 'Nemate pravo na ovaj magacin'; end if;
   if p_qty is null or p_qty<=0 then raise exception 'Neispravna količina'; end if;
+  select name into tn from plants where id=p_to;
+  if tn is null then raise exception 'Nepoznat pogon'; end if;
   select coalesce(sum(qty_in-qty_out),0) into st from movements
     where plant_id=p_plant and customer_id=p_customer and product_id=p_product and serija=s;
   if p_qty>st then raise exception 'Količina je veća od stanja (stanje: %)', st; end if;
   insert into movements(date,plant_id,customer_id,product_id,serija,qty_out,note,kind,transfer_id)
-  values(p_date,p_plant,p_customer,p_product,s,p_qty,nullif(p_note,''),'izlaz',gen_random_uuid());
+  values(p_date,p_plant,p_customer,p_product,s,p_qty,concat_ws(' · ','Izlaz u pogon: '||tn,nullif(p_note,'')),'izlaz',gen_random_uuid());
 end $$;
 
 -- KOREKCIJE (samo upravnik): ispravka količine/datuma i brisanje; kod prebacivanja se mijenjaju obje strane
