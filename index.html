@@ -30,16 +30,22 @@ table{width:100%;border-collapse:collapse}td,th{padding:10px 6px;border-bottom:1
 .wrap{overflow-x:auto}.tabs{display:flex;gap:6px;margin-bottom:12px}.tabs button{flex:1;padding:10px;border-radius:10px;border:1px solid var(--br);background:var(--card);color:var(--tx);font-weight:600}.tabs .on{background:var(--pr);color:#fff}
 #toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#10231f;color:#fff;padding:12px 18px;border-radius:12px;z-index:9;display:none;max-width:90%}
 .auth{max-width:420px;margin:8vh auto;padding:0 16px}.auth h1{text-align:center;color:var(--pr)}.link{background:none;border:0;color:var(--pr);font-weight:600;width:100%;margin-top:12px;padding:8px}
+.hero{background:linear-gradient(135deg,var(--pr),#0b5a54);color:#fff;border:0}.hero .mu,.hero label{color:#ffffffcc}.huge{font-size:44px;font-weight:800;line-height:1.1}.huge small{font-size:18px;opacity:.8}.hero .chip{background:#ffffff26;color:#fff;border:0}
+details.card summary{list-style:none;cursor:pointer}details.card summary::-webkit-details-marker{display:none}details[open]>summary{border-bottom:1px solid var(--br);padding-bottom:10px}
+.tag{background:var(--bg);border:1px solid var(--br);border-radius:6px;font-size:11px;padding:1px 6px;color:var(--mu)}.x{border:0;background:none}
+.grid3{display:grid;grid-template-columns:1fr 1fr;gap:10px}.grid3>div:last-child:nth-child(3){grid-column:1/-1}@media(min-width:760px){.grid3{grid-template-columns:1fr 1fr 2fr}}
+.ov{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:20}
 </style></head><body><div id="toast"></div><div id="root"></div>
 <script>
-const SUPABASE_URL='https://jdwoukromsnjhbzuuwmg.supabase.co', SUPABASE_KEY='sb_publishable_t06ANgBontBuGUtC_DXQCQ_jgx2XZmx';
+const SUPABASE_URL='https://TVOJ-PROJEKAT.supabase.co', SUPABASE_KEY='TVOJ_ANON_KEY';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=s=>document.querySelector(s),root=$('#root');
-const fmt=n=>Number(n||0).toLocaleString('bs-BA'),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let me,plants=[],customers=[],products=[],stock=[],tab,type='in',sel={},pre={},mode='login';
+const fmt=n=>Number(n||0).toLocaleString('bs-BA'),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),fd=d=>d.split('-').reverse().join('.');
+let me,plants=[],customers=[],products=[],stock=[],mov=[],tab,type='in',sel={},pre={},mode='login',rg={f:'',t:'',q:''},zero=false;
 function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',3200)}
 async function all(q){let o=[],i=0;for(;;){const{data,error}=await q().range(i,i+999);if(error)throw error;o=o.concat(data);if(data.length<1000)return o;i+=1000}}
 const up=()=>me.role==='upravnik';
+async function ens(tb,val,list,ex={}){let f=list.find(x=>x.name.toLowerCase()===val.toLowerCase());if(f)return f;const{data,error}=await sb.from(tb).insert({name:val,...ex}).select().single();if(error)throw error;list.push(data);return data}
 async function init(){const{data:{session}}=await sb.auth.getSession();session?boot():authView()}
 function authView(){const r=mode==='reg';
  root.innerHTML=`<div class="auth"><h1>📦 Praćenje magacina</h1><div class="card"><form id="f">
@@ -55,52 +61,68 @@ function authView(){const r=mode==='reg';
 async function boot(){try{
  const{data:{user}}=await sb.auth.getUser();
  me=(await sb.from('profiles').select('*,plants(name)').eq('id',user.id).single()).data;
- [customers,products,plants]=await Promise.all([all(()=>sb.from('customers').select('*').order('name')),all(()=>sb.from('products').select('*').order('code')),all(()=>sb.from('plants').select('*').order('name'))]);
- tab=up()?'pogoni':'unos';await loadStock();shell()}catch(e){toast(e.message);authView()}}
-const loadStock=async()=>stock=await all(()=>sb.from('v_stock').select('*').order('customer'));
-const tabs=()=>up()?[['pogoni','🏭','Pogoni'],['kupci','🏢','Kupci'],['proizvodi','📦','Proizvodi'],['evid','🧾','Evidencija']]:[['unos','➕','Unos'],['stanje','📊','Stanje'],['evid','🧾','Evidencija']];
+ [customers,products,plants]=await Promise.all([all(()=>sb.from('customers').select('*').order('name')),all(()=>sb.from('products').select('*').order('name')),all(()=>sb.from('plants').select('*').order('name'))]);
+ tab=up()?'pogoni':'unos';await loadAll();shell()}catch(e){toast(e.message);authView()}}
+async function loadAll(){[stock,mov]=await Promise.all([all(()=>sb.from('v_stock').select('*').order('customer')),all(()=>sb.from('movements').select('*,customers(name),products(name),plants(name)').order('date',{ascending:false}).order('created_at',{ascending:false}))])}
+const tabs=()=>up()?[['pogoni','🏭','Pogoni'],['kupci','🏢','Kupci'],['proizvodi','📦','Proizvodi'],['evid','🗓','Historija']]:[['unos','➕','Unos'],['stanje','📊','Stanje'],['evid','🗓','Historija']];
 function shell(){root.innerHTML=`<header><div><b>📦 Magacin</b><small>${esc(me.full_name||me.email)} · ${up()?'Upravnik':esc(me.plants?.name||'')}</small></div><button id="lo">Odjava</button></header>
  <main id="v"></main><nav>${tabs().map(t=>`<button data-t="${t[0]}" class="${t[0]===tab?'on':''}"><span>${t[1]}</span>${t[2]}</button>`).join('')}</nav>`;
  $('#lo').onclick=async()=>{await sb.auth.signOut();me=null;authView()};
  document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;shell()});view()}
-const view=()=>({unos:vUnos,stanje:vStanje,evid:vEvid,pogoni:()=>vGroup('plant'),kupci:()=>vGroup('customer'),proizvodi:()=>vGroup('code')})[tab]();
+const view=()=>({unos:vUnos,stanje:vStanje,evid:vEvid,pogoni:()=>vGroup('plant'),kupci:()=>vGroup('customer'),proizvodi:()=>vGroup('product')})[tab]();
+const same=(s,m)=>m.plant_id===s.plant_id&&m.customer_id===s.customer_id&&m.product_id===s.product_id;
+const inR=m=>(!rg.f||m.date>=rg.f)&&(!rg.t||m.date<=rg.t);
 function vUnos(){const v=$('#v');
  v.innerHTML=`<div class="card"><div class="seg"><button class="in ${type==='in'?'on':''}" data-ty="in">⬇ Ulaz</button><button class="out ${type==='out'?'on':''}" data-ty="out">⬆ Izlaz</button></div>
  <label>Datum</label><input id="dt" type="date" value="${new Date().toISOString().slice(0,10)}">
  <label>Kupac</label><input id="cu" list="cl" value="${esc(pre.c||'')}" placeholder="odaberi ili upiši novog"><datalist id="cl">${customers.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist>
- <label>Šifra artikla</label><input id="co" list="pl2" value="${esc(pre.p||'')}" placeholder="odaberi ili upiši novu"><datalist id="pl2">${products.map(p=>`<option value="${esc(p.code)}">${esc(p.name||'')}</option>`).join('')}</datalist>
- <label>Naziv artikla</label><input id="pn"><label>Količina (kom)</label><input id="qt" type="number" inputmode="numeric" min="1">
- <label>Nalog / napomena</label><input id="nt"><div class="hint" id="h" style="display:none"></div><button class="btn" id="sv">Spremi</button></div>`;
- const upd=()=>{const c=$('#cu').value.trim().toLowerCase(),p=$('#co').value.trim().toLowerCase(),pr=products.find(x=>x.code.toLowerCase()===p);
-  if(pr&&!$('#pn').value)$('#pn').value=pr.name||'';const s=stock.find(x=>x.customer.toLowerCase()===c&&x.code.toLowerCase()===p),h=$('#h');
+ <label>Proizvod</label><input id="co" list="pl2" value="${esc(pre.p||'')}" placeholder="odaberi ili upiši novi"><datalist id="pl2">${products.map(p=>`<option value="${esc(p.name)}">`).join('')}</datalist>
+ <label>Količina (kom)</label><input id="qt" type="number" inputmode="numeric" min="1">
+ <label>Nalog / napomena (nije obavezno)</label><input id="nt"><div class="hint" id="h" style="display:none"></div><button class="btn" id="sv">Spremi</button></div>`;
+ const upd=()=>{const c=$('#cu').value.trim().toLowerCase(),p=$('#co').value.trim().toLowerCase(),s=stock.find(x=>x.customer.toLowerCase()===c&&x.product.toLowerCase()===p),h=$('#h');
   h.style.display=c&&p?'block':'none';h.innerHTML=`Trenutno stanje: ${fmt(s?.stanje)} kom`};
  ['cu','co'].forEach(i=>$('#'+i).oninput=upd);upd();
  v.querySelectorAll('[data-ty]').forEach(b=>b.onclick=()=>{type=b.dataset.ty;v.querySelectorAll('[data-ty]').forEach(x=>x.classList.toggle('on',x===b))});
- $('#sv').onclick=async()=>{try{const cn=$('#cu').value.trim(),cd=$('#co').value.trim(),q=+$('#qt').value;
-  if(!cn||!cd||!q)return toast('Popuni kupca, šifru i količinu');if(!me.plant_id)return toast('Račun nema pogon');
-  const s=stock.find(x=>x.customer.toLowerCase()===cn.toLowerCase()&&x.code.toLowerCase()===cd.toLowerCase());
+ $('#sv').onclick=async()=>{try{const cn=$('#cu').value.trim(),pn=$('#co').value.trim(),q=+$('#qt').value;
+  if(!cn||!pn||!q)return toast('Upiši kupca, proizvod i količinu');if(!me.plant_id)return toast('Račun nema pogon');
+  const s=stock.find(x=>x.customer.toLowerCase()===cn.toLowerCase()&&x.product.toLowerCase()===pn.toLowerCase());
   if(type==='out'&&q>(s?.stanje||0)&&!confirm(`Izlaz (${fmt(q)}) je veći od stanja (${fmt(s?.stanje)}). Spremiti svejedno?`))return;
-  const ens=async(tb,col,val,list,ex={})=>{let f=list.find(x=>x[col].toLowerCase()===val.toLowerCase());if(f)return f;const{data,error}=await sb.from(tb).insert({[col]:val,...ex}).select().single();if(error)throw error;list.push(data);return data};
-  const c=await ens('customers','name',cn,customers),p=await ens('products','code',cd,products,{name:$('#pn').value.trim()||cd});
+  const c=await ens('customers',cn,customers),p=await ens('products',pn,products);
   const{error}=await sb.from('movements').insert({date:$('#dt').value,plant_id:me.plant_id,customer_id:c.id,product_id:p.id,qty_in:type==='in'?q:0,qty_out:type==='out'?q:0,note:$('#nt').value.trim()||null});
-  if(error)throw error;pre={};await loadStock();toast('✅ Spremljeno');vUnos()}catch(e){toast(e.message)}}}
-function vStanje(){const v=$('#v');v.innerHTML=`<input id="q" placeholder="🔍 Traži kupca ili šifru"><div id="l" style="margin-top:12px"></div>`;
- const draw=()=>{const q=$('#q').value.toLowerCase(),r=stock.filter(s=>(s.customer+s.code+(s.product||'')).toLowerCase().includes(q));
-  $('#l').innerHTML=r.map((s,i)=>`<div class="card row" data-i="${i}"><div><b>${esc(s.customer)}</b><div>${esc(s.code)} ${s.product&&s.product!==s.code?'· '+esc(s.product):''}</div><div class="mu"><span class="in">▼ ${fmt(s.qty_in)}</span> · <span class="out">▲ ${fmt(s.qty_out)}</span></div></div><div class="big">${fmt(s.stanje)}</div></div>`).join('')||'<p class="mu">Nema podataka.</p>';
-  $('#l').querySelectorAll('[data-i]').forEach(d=>d.onclick=()=>{const s=r[d.dataset.i];pre={c:s.customer,p:s.code};tab='unos';shell()})};
+  if(error)throw error;pre={};await loadAll();toast('✅ Spremljeno');vUnos()}catch(e){toast(e.message)}}}
+function transfer(s){const o=document.createElement('div');o.className='ov';
+ o.innerHTML=`<div class="card" style="width:min(420px,92vw)"><b>Prebaci na drugog kupca</b><div class="mu">${esc(s.customer)} · ${esc(s.product)} · ${esc(s.plant)} · stanje ${fmt(s.stanje)} kom</div>
+ <label>Novi kupac</label><input id="tc" list="cl2" placeholder="odaberi ili upiši"><datalist id="cl2">${customers.filter(c=>c.id!==s.customer_id).map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist>
+ <label>Količina (kom)</label><input id="tq" type="number" min="1" max="${s.stanje}" value="${s.stanje}"><button class="btn" id="tg">Prebaci</button><button class="link" id="tx">Odustani</button></div>`;
+ document.body.appendChild(o);$('#tx').onclick=()=>o.remove();
+ $('#tg').onclick=async()=>{try{const n=$('#tc').value.trim();if(!n)return toast('Upiši kupca');const c=await ens('customers',n,customers);
+  const{error}=await sb.rpc('transfer_stock',{p_plant:s.plant_id,p_product:s.product_id,p_from:s.customer_id,p_to:c.id,p_qty:+$('#tq').value});
+  if(error)throw error;o.remove();await loadAll();toast('✅ Prebačeno');view()}catch(e){toast(e.message)}}}
+const hist=(ms,canDel)=>ms.length?`<div class="wrap"><table><tr><th>Datum</th><th class="n">Ulaz</th><th class="n">Izlaz</th><th>Napomena</th><th></th></tr>${ms.map(m=>`<tr><td>${fd(m.date)}</td><td class="n in">${m.qty_in?fmt(m.qty_in):''}</td><td class="n out">${m.qty_out?fmt(m.qty_out):''}</td><td>${m.kind==='prebacivanje'?'<span class="tag">prebačeno</span> ':''}${esc(m.note)}</td><td>${canDel&&m.kind!=='prebacivanje'?`<button data-d="${m.id}" class="x">🗑</button>`:''}</td></tr>`).join('')}</table></div>`:'<p class="mu">Nema transakcija u odabranom periodu.</p>';
+function bind(){document.querySelectorAll('[data-d]').forEach(b=>b.onclick=async e=>{e.preventDefault();if(!confirm('Obrisati ovaj unos?'))return;const{error}=await sb.from('movements').delete().eq('id',b.dataset.d);if(error)return toast(error.message);await loadAll();view()});
+ document.querySelectorAll('[data-tr]').forEach(b=>b.onclick=e=>{e.preventDefault();transfer(stock[+b.dataset.tr])})}
+const card=(s,labels,open)=>{const ms=mov.filter(m=>same(s,m)&&inR(m));return `<details class="card"><summary class="row"><div><b>${labels}</b><div class="mu"><span class="in">▼ ${fmt(s.qty_in)}</span> · <span class="out">▲ ${fmt(s.qty_out)}</span> · ${ms.length} transakcija</div></div><div class="big">${fmt(s.stanje)}</div></summary>
+ <div style="margin-top:10px">${hist(ms,true)}${s.stanje>0?`<button class="chip" style="margin-top:10px" data-tr="${stock.indexOf(s)}">🔁 Prebaci na drugog kupca</button>`:''}</div></details>`};
+function vStanje(){const v=$('#v');v.innerHTML=`<input id="q" placeholder="🔍 Traži kupca ili proizvod"><div id="l" style="margin-top:12px"></div>`;
+ const draw=()=>{const q=$('#q').value.toLowerCase(),r=stock.filter(s=>s.stanje!==0&&(s.customer+s.product).toLowerCase().includes(q));
+  $('#l').innerHTML=r.map(s=>card(s,`${esc(s.customer)} · ${esc(s.product)}`)).join('')||'<p class="mu">Nema podataka.</p>';bind()};
  $('#q').oninput=draw;draw()}
-async function vEvid(){const v=$('#v');v.innerHTML='<p class="mu">Učitavam…</p>';
- const d=await all(()=>sb.from('movements').select('*,customers(name),products(code),plants(name)').order('date',{ascending:false}).order('created_at',{ascending:false}));
- v.innerHTML=`<div class="card wrap"><table><tr><th>Datum</th>${up()?'<th>Pogon</th>':''}<th>Kupac</th><th>Šifra</th><th class="n">Ulaz</th><th class="n">Izlaz</th><th>Napomena</th><th></th></tr>${d.map(m=>`<tr><td>${m.date}</td>${up()?`<td>${esc(m.plants.name)}</td>`:''}<td>${esc(m.customers.name)}</td><td>${esc(m.products.code)}</td><td class="n in">${m.qty_in?fmt(m.qty_in):''}</td><td class="n out">${m.qty_out?fmt(m.qty_out):''}</td><td>${esc(m.note)}</td><td><button data-d="${m.id}" style="border:0;background:none">🗑</button></td></tr>`).join('')}</table></div>`;
- v.querySelectorAll('[data-d]').forEach(b=>b.onclick=async()=>{if(!confirm('Obrisati ovaj unos?'))return;const{error}=await sb.from('movements').delete().eq('id',b.dataset.d);if(error)return toast(error.message);await loadStock();vEvid()})}
-function vGroup(dim){const v=$('#v'),cols={plant:[['customer','Kupac'],['code','Artikal']],customer:[['plant','Pogon'],['code','Artikal']],code:[['plant','Pogon'],['customer','Kupac']]}[dim];
- const keys=[...new Set(stock.map(s=>s[dim]))].sort(),tot=k=>stock.filter(s=>s[dim]===k).reduce((a,s)=>a+s.stanje,0);
- if(!keys.includes(sel[dim]))sel[dim]=keys[0];const rows=stock.filter(s=>s[dim]===sel[dim]);
+function vEvid(){const v=$('#v');
+ v.innerHTML=`<div class="card"><div class="grid3"><div><label>Od</label><input id="f" type="date" value="${rg.f}"></div><div><label>Do</label><input id="t" type="date" value="${rg.t}"></div><div><label>Traži</label><input id="q" value="${esc(rg.q)}" placeholder="kupac, proizvod…"></div></div></div><div id="l"></div>`;
+ const draw=()=>{const q=rg.q.toLowerCase(),d=mov.filter(m=>inR(m)&&(m.customers.name+m.products.name+m.plants.name+(m.note||'')).toLowerCase().includes(q)),days=[...new Set(d.map(m=>m.date))];
+  $('#l').innerHTML=days.map(day=>{const ms=d.filter(m=>m.date===day),ui=ms.filter(m=>m.kind==='promet');return `<div class="card"><div class="row"><b>${fd(day)}</b><span class="mu"><span class="in">▼ ${fmt(ui.reduce((a,m)=>a+m.qty_in,0))}</span> · <span class="out">▲ ${fmt(ui.reduce((a,m)=>a+m.qty_out,0))}</span></span></div><div class="wrap"><table>${ms.map(m=>`<tr><td>${up()?esc(m.plants.name)+'<div class="mu">'+esc(m.customers.name)+'</div>':esc(m.customers.name)}</td><td>${esc(m.products.name)}${m.note?`<div class="mu">${m.kind==='prebacivanje'?'🔁 ':''}${esc(m.note)}</div>`:''}</td><td class="n in">${m.qty_in?'+'+fmt(m.qty_in):''}</td><td class="n out">${m.qty_out?'−'+fmt(m.qty_out):''}</td><td>${m.kind!=='prebacivanje'?`<button data-d="${m.id}" class="x">🗑</button>`:''}</td></tr>`).join('')}</table></div></div>`}).join('')||'<p class="mu">Nema transakcija.</p>';bind()};
+ ['f','t','q'].forEach(i=>$('#'+i).oninput=e=>{rg[i]=e.target.value;draw()});draw()}
+function vGroup(dim){const v=$('#v'),cols={plant:['customer','product'],customer:['plant','product'],product:['plant','customer']}[dim];
+ const ok=s=>zero||s.stanje!==0,keys=[...new Set(stock.filter(ok).map(s=>s[dim]))].sort(),tot=k=>stock.filter(s=>s[dim]===k).reduce((a,s)=>a+s.stanje,0);
+ if(!keys.includes(sel[dim]))sel[dim]=keys[0];const rows=stock.filter(s=>s[dim]===sel[dim]&&ok(s));
  v.innerHTML=keys.length?`<div class="chips">${keys.map(k=>`<button class="chip ${k===sel[dim]?'on':''}" data-k="${esc(k)}">${esc(k)}<small>${fmt(tot(k))}</small></button>`).join('')}</div>
- <div class="card wrap"><div class="row"><div><div class="mu">Ukupno stanje</div><div class="big">${fmt(tot(sel[dim]))} kom</div></div><button class="chip" id="ex">⬇ CSV</button></div>
- <table><tr>${cols.map(c=>`<th>${c[1]}</th>`).join('')}<th class="n">Ulaz</th><th class="n">Izlaz</th><th class="n">Stanje</th></tr>${rows.map(s=>`<tr>${cols.map(c=>`<td>${esc(s[c[0]])}${c[0]==='code'&&s.product&&s.product!==s.code?`<div class="mu">${esc(s.product)}</div>`:''}</td>`).join('')}<td class="n in">${fmt(s.qty_in)}</td><td class="n out">${fmt(s.qty_out)}</td><td class="n"><b>${fmt(s.stanje)}</b></td></tr>`).join('')}</table></div>`:'<p class="mu">Još nema unosa.</p>';
- v.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{sel[dim]=b.dataset.k;vGroup(dim)});
- const ex=$('#ex');if(ex)ex.onclick=()=>{const l=[['Pogon','Kupac','Šifra','Naziv','Ulaz','Izlaz','Stanje'],...rows.map(s=>[s.plant,s.customer,s.code,s.product,s.qty_in,s.qty_out,s.stanje])];
+ <div class="card hero"><div class="mu">TRENUTNO STANJE · ${esc(sel[dim])}</div><div class="huge">${fmt(tot(sel[dim]))} <small>kom</small></div>
+ <div class="row" style="margin-top:8px"><label style="margin:0"><input type="checkbox" id="z" ${zero?'checked':''} style="width:auto"> prikaži i nulta stanja</label><button class="chip" id="ex">⬇ CSV</button></div></div>
+ <div class="card"><div class="grid3" style="grid-template-columns:1fr 1fr"><div><label>Historija od</label><input id="f" type="date" value="${rg.f}"></div><div><label>do</label><input id="t" type="date" value="${rg.t}"></div></div><div class="mu" style="margin-top:6px">Stanje je uvijek trenutno; period filtrira samo prikaz transakcija (otvori karticu).</div></div>
+ ${rows.map(s=>card(s,cols.map(c=>esc(s[c])).join(' · '))).join('')}`:'<p class="mu">Još nema stanja.</p>';
+ bind();v.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{sel[dim]=b.dataset.k;vGroup(dim)});
+ if(!keys.length)return;$('#z').onchange=e=>{zero=e.target.checked;vGroup(dim)};['f','t'].forEach(i=>$('#'+i).onchange=e=>{rg[i]=e.target.value;vGroup(dim)});
+ $('#ex').onclick=()=>{const l=[['Pogon','Kupac','Proizvod','Ulaz','Izlaz','Stanje'],...rows.map(s=>[s.plant,s.customer,s.product,s.qty_in,s.qty_out,s.stanje])];
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+l.map(r=>r.map(x=>`"${String(x??'').replace(/"/g,'""')}"`).join(';')).join('\n')],{type:'text/csv'}));a.download=`stanje-${sel[dim]}.csv`;a.click()}}
 sb.auth.onAuthStateChange(e=>{if(e==='SIGNED_OUT')authView()});init();
 </script></body></html>
