@@ -4,15 +4,7 @@ alter table movements add column if not exists transfer_id uuid;
 insert into plants(name,is_main) values('Glavni magacin',true)
   on conflict ((lower(name))) do update set is_main=true;
 
--- ===== RUTE, PREBACIVANJE IZMEĐU POGONA, OTPREMA, KOREKCIJE =====
-create table if not exists routes(id uuid primary key default gen_random_uuid(),
-  from_plant uuid not null references plants on delete cascade, to_plant uuid not null references plants on delete cascade,
-  unique(from_plant,to_plant), check(from_plant<>to_plant));
-alter table routes enable row level security;
-drop policy if exists "routes read" on routes; drop policy if exists "routes add" on routes; drop policy if exists "routes del" on routes;
-create policy "routes read" on routes for select to authenticated using (true);
-create policy "routes add" on routes for insert to authenticated with check (is_upravnik());
-create policy "routes del" on routes for delete to authenticated using (is_upravnik());
+-- ===== IZLAZ, PREBACIVANJE I KOREKCIJE (bez ruta) =====
 
 -- vođa direktno može upisati samo ULAZ; izlaz ide isključivo preko funkcije izlaz()
 drop policy if exists "mov add" on movements; drop policy if exists "mov del" on movements;
@@ -22,10 +14,10 @@ create policy "mov del" on movements for delete to authenticated using (can_plan
 create or replace view v_stock with (security_invoker=true) as
 select m.plant_id, p.name plant, m.customer_id, c.name customer, m.product_id, pr.name product, m.serija,
   coalesce(sum(m.qty_in) filter (where m.kind in ('promet','pogon')),0)::int qty_in,
-  coalesce(sum(m.qty_out) filter (where m.kind in ('promet','pogon','otprema')),0)::int qty_out,
+  coalesce(sum(m.qty_out) filter (where m.kind in ('promet','pogon','otprema','izlaz')),0)::int qty_out,
   sum(m.qty_in-m.qty_out)::int stanje,
   max(m.date) filter (where m.kind in ('promet','pogon') and m.qty_in>0) last_in,
-  max(m.date) filter (where m.kind in ('promet','pogon','otprema') and m.qty_out>0) last_out
+  max(m.date) filter (where m.kind in ('promet','pogon','otprema','izlaz') and m.qty_out>0) last_out
 from movements m join plants p on p.id=m.plant_id join customers c on c.id=m.customer_id join products pr on pr.id=m.product_id
 where not p.is_main
 group by 1,2,3,4,5,6,7;
@@ -46,27 +38,20 @@ end $$;
 
 drop function if exists transfer_plants(uuid,uuid,uuid,uuid,text,int);
 
--- IZLAZ: iz pogona u drugi pogon (skida se ovdje, dodaje tamo) ili u glavni magacin (samo skida, stanje glavnog se ne vodi). Samo dozvoljene rute.
-create or replace function izlaz(p_plant uuid, p_to uuid, p_customer uuid, p_product uuid, p_serija text, p_qty int,
+-- IZLAZ: skida količinu sa stanja izabranog pogona/kupca; transakcija ostaje u historiji. Bez ruta.
+drop function if exists izlaz(uuid, uuid, uuid, uuid, text, int, date, text);
+create or replace function izlaz(p_plant uuid, p_customer uuid, p_product uuid, p_serija text, p_qty int,
   p_date date default current_date, p_note text default null)
 returns void language plpgsql security definer set search_path=public as $$
-declare st int; fn text; tn text; mn boolean; tid uuid := gen_random_uuid(); s text := coalesce(p_serija,'');
+declare st int; s text := coalesce(p_serija,'');
 begin
   if not can_plant(p_plant) then raise exception 'Nemate pravo na ovaj pogon'; end if;
-  if not exists(select 1 from routes where from_plant=p_plant and to_plant=p_to) then raise exception 'Ta ruta nije dozvoljena'; end if;
   if p_qty is null or p_qty<=0 then raise exception 'Neispravna količina'; end if;
-  select coalesce(sum(qty_in-qty_out),0) into st from movements where plant_id=p_plant and customer_id=p_customer and product_id=p_product and serija=s;
+  select coalesce(sum(qty_in-qty_out),0) into st from movements
+    where plant_id=p_plant and customer_id=p_customer and product_id=p_product and serija=s;
   if p_qty>st then raise exception 'Količina je veća od stanja (stanje: %)', st; end if;
-  select name into fn from plants where id=p_plant; select name,is_main into tn,mn from plants where id=p_to;
-  if mn then
-    insert into movements(date,plant_id,customer_id,product_id,serija,qty_out,note,kind,transfer_id)
-    values(p_date,p_plant,p_customer,p_product,s,p_qty,concat_ws(' · ','Otprema: '||tn,nullif(p_note,'')),'otprema',tid);
-  else
-    insert into movements(date,plant_id,customer_id,product_id,serija,qty_out,note,kind,transfer_id)
-    values(p_date,p_plant,p_customer,p_product,s,p_qty,concat_ws(' · ','Prebačeno u pogon: '||tn,nullif(p_note,'')),'pogon',tid);
-    insert into movements(date,plant_id,customer_id,product_id,serija,qty_in,note,kind,transfer_id)
-    values(p_date,p_to,p_customer,p_product,s,p_qty,concat_ws(' · ','Primljeno iz pogona: '||fn,nullif(p_note,'')),'pogon',tid);
-  end if;
+  insert into movements(date,plant_id,customer_id,product_id,serija,qty_out,note,kind,transfer_id)
+  values(p_date,p_plant,p_customer,p_product,s,p_qty,nullif(p_note,''),'izlaz',gen_random_uuid());
 end $$;
 
 -- KOREKCIJE (samo upravnik): ispravka količine/datuma i brisanje; kod prebacivanja se mijenjaju obje strane

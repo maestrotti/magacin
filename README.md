@@ -5,11 +5,14 @@
 2. Provjera: `select current_user;` → mora vratiti `postgres`.
 3. Brisanje stare baze: zalijepi `reset.sql` → Run. (Ili napravi potpuno novi Supabase projekat pa preskoči ovaj korak i u `index.html` upiši novi URL i ključ.)
 4. Zalijepi cijeli `schema.sql` → Run. Treba pisati "Success".
+4b. **Ako baza već postoji** (ne radiš reset): pokreni `migracija_izlaz.sql` → Run. Uvodi izlaz bez ruta (vođa bira pogon + kupca, izlaz skida sa stanja, historija ostaje).
 5. Authentication → Sign In / Providers → Email → isključi **Confirm email**.
 6. Provjera: `select email, role from profiles;` → Senad = upravnik, Belmin = vodja.
 
 ## 2. Aplikacija
 U `index.html` su na vrhu `SUPABASE_URL` i `SUPABASE_KEY` (Project Settings → API → publishable/anon key). Provjeri da odgovaraju projektu.
+
+Vođa (k.belmin) vidi tab **Magacin**: na **Izlazu** bira pogon i kupca, količina se skida sa stanja (artikal nestaje iz stanja kad padne na 0), a transakcija ostaje u **Historiji**. Rute se više ne koriste.
 
 ## 3. GitHub
 ```
