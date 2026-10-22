@@ -5,7 +5,7 @@
 2. Provjera: `select current_user;` → mora vratiti `postgres`.
 3. Brisanje stare baze: zalijepi `reset.sql` → Run. (Ili napravi potpuno novi Supabase projekat pa preskoči ovaj korak i u `index.html` upiši novi URL i ključ.)
 4. Zalijepi cijeli `schema.sql` → Run. Treba pisati "Success".
-4b. **Ako baza već postoji** (ne radiš reset): pokreni `migracija_izlaz.sql` → Run. Uvodi magacin kao jednu lokaciju (ulaz bez pogona, izlaz bira pogon), bez ruta.
+4b. **Ako baza već postoji** (ne radiš reset): pokreni `migracija_izlaz.sql` → Run. Uvodi magacin kao jednu lokaciju (ulaz bez pogona, izlaz bira pogon), bez ruta. Skripta je idempotentna i dodaje kolonu `movements.to_plant` (pogon u koji je roba otišla) — pa je pokreni i ako si je već ranije pokretao.
 5. Authentication → Sign In / Providers → Email → isključi **Confirm email**.
 6. Provjera: `select email, role from profiles;` → Senad = upravnik, Belmin = vodja.
 
@@ -17,6 +17,10 @@ Vođa (k.belmin) vidi tab **Magacin** i radi u **Glavnom magacinu**:
 - **Izlaz** – bira kupca, artikal i **pogon u koji roba ide**; količina se skida sa stanja magacina (artikal nestaje iz stanja kad padne na 0), a pogon i transakcija ostaju u **Historiji**.
 - Rute se više ne koriste.
 
+Upravnik (o.senad) ima dva taba:
+- **📦 Magacin** – stanje **glavnog magacina nakon svih izlaza**: ukupno komada + lista sa prekidačem **Po proizvodu / Po kupcu**, pretragom, sortiranjem (Stanje / Naziv / Ulaz / Izlaz / Zadnji izlaz) i CSV izvozom. Klik na stavku otvara detalje (kupac/proizvod/serija, ulaz, izlaz, stanje).
+- **🗓 Historija** – sve transakcije sa filterima: **Od/Do datuma, kupac, proizvod, pogon (kuda je otišlo), tip (ulazi/izlazi)** i tekstualna pretraga. Sortiranje klikom na zaglavlje kolone (Datum, Iz, U pogon, Kupac, Proizvod, Ulaz, Izlaz). Gore je zbir ulaza/izlaza za trenutni filter, a CSV dugme izvozi filtrirano stanje.
+
 ## 3. GitHub
 ```
 cd C:\Users\t.nihad\Desktop\upravnik\magacin_monitoring
@@ -25,6 +29,14 @@ git commit -m "Nova verzija"
 git push
 ```
 Na GitHub idu `index.html`, `manifest.webmanifest` i `migracija_izlaz.sql` (bez lozinki). `schema.sql` i `reset.sql` ne guraj u javni repo – sadrže lozinke/e-mailove.
+
+## Rješavanje problema
+- **„Nemaš dozvolu za upis u glavni magacin“ / „new row violates row-level security policy“**
+  Vođa nema pristup glavnom magacinu u tabeli `user_plants`. Pokreni `migracija_izlaz.sql` (rola `postgres`) – korak 1 sada daje pristup glavnom magacinu **svim** profilima s rolom `vodja`.
+- **„Ta ruta nije dozvoljena“ pri izlazu**
+  U bazi je ostala stara funkcija `izlaz` s rutama. `migracija_izlaz.sql` briše sve stare verzije i pravi novu (`p_plant` = magacin, `p_to` = pogon). Provjeri zadnji `select` na kraju skripte.
+- Provjera pristupa: `select can_plant((select id from plants where is_main)), p.email from profiles p where p.role='vodja';` → mora biti `true`.
+- Aplikacija sama javlja ove dvije greške jasnom porukom i, ako pristup nedostaje, u tabu **Magacin** prikaže upozorenje umjesto forme.
 
 ## Korisnici
 - Upravnik (samo pregled): o.senad@pobjeda.com / 123Pobjeda

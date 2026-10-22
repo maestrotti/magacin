@@ -1,4 +1,5 @@
 -- MIGRACIJA postojeće baze (pokreni kao rola postgres). NE briše podatke.
+-- ⚠️ ZASTARJELO: ovo je stara verzija s rutama. Koristi migracija_izlaz.sql (bez ruta).
 alter table plants add column if not exists is_main boolean not null default false;
 alter table movements add column if not exists transfer_id uuid;
 insert into plants(name,is_main) values('Glavni magacin',true)
