@@ -7,7 +7,7 @@
 4. Zalijepi cijeli `schema.sql` → Run. Treba pisati "Success".
 4b. **Ako baza već postoji** (ne radiš reset): pokreni `migracija_izlaz.sql` → Run. Uvodi magacin kao jednu lokaciju (ulaz bez pogona, izlaz bira pogon), bez ruta. Skripta je idempotentna i dodaje kolonu `movements.to_plant` (pogon u koji je roba otišla) — pa je pokreni i ako si je već ranije pokretao.
 4c. Pokreni `admin.sql` → Run. Dodaje rolu **admin**, dozvole za sve tabele i admin nalog `admin` (lozinka je u samoj skripti; prijava ide kao `admin@pobjeda.com`). Skripta je idempotentna i sigurna za ponovno pokretanje. **`admin.sql` ne ide na GitHub** (sadrži lozinku) — u `.gitignore` je.
-4d. Pokreni `mok.sql` → Run. Dodaje drugi magacin **Pogon MOK** i korisnika **Elmir Kentra** (`mok`, lozinka je u skripti). Skripta je idempotentna. **`mok.sql` ne ide na GitHub** (sadrži lozinku) — u `.gitignore` je.
+4d. Pokreni `mok.sql` → Run. Dodaje drugi magacin **Pogon MOK** i korisnika **Elmir Kentra** (`mok`, lozinka je u skripti). Skripta je idempotentna; ponovno pokretanje vraća Elmirovu lozinku na početnu. **`mok.sql` ne ide na GitHub** (sadrži lozinku) — u `.gitignore` je.
 5. Authentication → Sign In / Providers → Email → isključi **Confirm email**.
 6. Provjera: `select email, role from profiles;` → Senad = upravnik, Belmin = vodja (glavni magacin), Elmir = vodja (Pogon MOK), admin = admin. Provjeri i `select name, is_store from plants;`.
 
@@ -16,7 +16,7 @@ U `index.html` su na vrhu `SUPABASE_URL` i `SUPABASE_KEY` (Project Settings → 
 
 Vođa (k.belmin) vidi tab **Magacin** i radi u **Glavnom magacinu**:
 - **Ulaz** – nema izbora pogona, roba ulazi u magacin.
-- **Izlaz** – bira kupca, artikal i **pogon u koji roba ide**; količina se skida sa stanja magacina (artikal nestaje iz stanja kad padne na 0), a pogon i transakcija ostaju u **Historiji**.
+- **Izlaz** – bira kupca, artikal i **odredište (pogon) u koje roba ide**; količina se skida sa stanja magacina (artikal nestaje iz stanja kad padne na 0), a odredište i transakcija ostaju u **Historiji**.
 - Rute se više ne koriste.
 
 Vođa (mok / Elmir Kentra) radi po istom principu u **Pogonu MOK**:
@@ -26,7 +26,7 @@ Vođa (mok / Elmir Kentra) radi po istom principu u **Pogonu MOK**:
 
 Upravnik (o.senad) ima dva taba:
 - **📦 Magacin** – stanje **nakon svih izlaza**, sa prekidačem između **glavnog magacina** i **Pogona MOK** (vidi oba). Ukupno komada + lista sa prekidačem **Po proizvodu / Po kupcu**, pretragom, sortiranjem (Stanje / Naziv / Ulaz / Izlaz / Zadnji izlaz) i CSV izvozom. Klik na stavku otvara detalje (kupac/proizvod/serija, ulaz, izlaz, stanje).
-- **🗓 Historija** – sve transakcije iz **oba magacina** sa filterima: **Od/Do datuma, kupac, proizvod, magacin (odakle), pogon (kuda je otišlo), tip (ulazi/izlazi)** i tekstualna pretraga. Sortiranje klikom na zaglavlje kolone (Datum, Iz, U pogon, Kupac, Proizvod, Ulaz, Izlaz). Gore je zbir ulaza/izlaza za trenutni filter, a CSV dugme izvozi filtrirano stanje.
+- **🗓 Historija** – sve transakcije iz **oba magacina** sa filterima: **Od/Do datuma, kupac, proizvod, magacin (odakle), odredište (kuda je otišlo), tip (ulazi/izlazi)** i tekstualna pretraga. Sortiranje klikom na zaglavlje kolone (Datum, Iz, Odredište, Kupac, Proizvod, Ulaz, Izlaz). Gore je zbir ulaza/izlaza za trenutni filter, a CSV dugme izvozi filtrirano stanje.
 
 **Admin** (korisničko ime `admin`; lozinka je u `admin.sql`, koji nije na GitHubu) ima sve što i upravnik, plus:
 - **⬇ Unos** – može sam upisati ulaz/izlaz i birati magacin (**Glavni magacin** ili **Pogon MOK**).
