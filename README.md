@@ -24,7 +24,7 @@ Upravnik (o.senad) ima dva taba:
 
 **Admin** (korisničko ime `admin`; lozinka je u `admin.sql`, koji nije na GitHubu) ima sve što i upravnik, plus:
 - **⬇ Unos** – može sam upisati ulaz/izlaz u glavni magacin.
-- **⚙️ Admin** – upravljanje bazom: **Korisnici** (dodaj/izmijeni/obriši, promjena lozinke i role), **Artikli**, **Kupci** i **Pogoni** (dodaj/izmijeni/obriši). Brisanje je dozvoljeno samo ako se zapis ne koristi u transakcijama.
+- **⚙️ Admin** – upravljanje bazom: **Korisnici** (dodaj/izmijeni/obriši, promjena lozinke i role), **Artikli**, **Kupci** i **Pogoni** (dodaj/izmijeni/obriši). Ako se zapis koristi u transakcijama, admin može potvrditi brisanje **i svih njegovih transakcija** (time se mijenja stanje magacina). Pojedinačne transakcije briše u **Historiji** (🗑), a ispravlja količinu/datum sa ✏️.
 - **Historija** – kod svakog unosa ima ✏️ (ispravka količine/datuma) i 🗑 (brisanje), pa tako mijenja i stanje magacina.
 
 Polja **Kupac**, **Šifra artikla** i **Serija** imaju pametni padajući meni: dok kucaš, lista se filtrira i prvo prikazuje stavke koje **počinju** upisanim tekstom (npr. `LP-1` → LP-1, LP-11, LP-100…). Radi i strelicama ↑/↓ + Enter.
