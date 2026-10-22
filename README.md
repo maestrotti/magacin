@@ -22,7 +22,7 @@ Upravnik (o.senad) ima dva taba:
 - **📦 Magacin** – stanje **glavnog magacina nakon svih izlaza**: ukupno komada + lista sa prekidačem **Po proizvodu / Po kupcu**, pretragom, sortiranjem (Stanje / Naziv / Ulaz / Izlaz / Zadnji izlaz) i CSV izvozom. Klik na stavku otvara detalje (kupac/proizvod/serija, ulaz, izlaz, stanje).
 - **🗓 Historija** – sve transakcije sa filterima: **Od/Do datuma, kupac, proizvod, pogon (kuda je otišlo), tip (ulazi/izlazi)** i tekstualna pretraga. Sortiranje klikom na zaglavlje kolone (Datum, Iz, U pogon, Kupac, Proizvod, Ulaz, Izlaz). Gore je zbir ulaza/izlaza za trenutni filter, a CSV dugme izvozi filtrirano stanje.
 
-**Admin** (`admin` / `admin123`) ima sve što i upravnik, plus:
+**Admin** (korisničko ime `admin`; lozinka je u `admin.sql`, koji nije na GitHubu) ima sve što i upravnik, plus:
 - **⬇ Unos** – može sam upisati ulaz/izlaz u glavni magacin.
 - **⚙️ Admin** – upravljanje bazom: **Korisnici** (dodaj/izmijeni/obriši, promjena lozinke i role), **Artikli**, **Kupci** i **Pogoni** (dodaj/izmijeni/obriši). Brisanje je dozvoljeno samo ako se zapis ne koristi u transakcijama.
 - **Historija** – kod svakog unosa ima ✏️ (ispravka količine/datuma) i 🗑 (brisanje), pa tako mijenja i stanje magacina.
