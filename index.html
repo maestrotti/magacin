@@ -35,21 +35,43 @@ details.card summary{list-style:none;cursor:pointer}details.card summary::-webki
 .tag{background:var(--bg);border:1px solid var(--br);border-radius:6px;font-size:11px;padding:1px 6px;color:var(--mu)}.x{border:0;background:none}
 .grid3{display:grid;grid-template-columns:1fr 1fr;gap:10px}.grid3>div:last-child:nth-child(3){grid-column:1/-1}@media(min-width:760px){.grid3{grid-template-columns:1fr 1fr 2fr}}
 .ov{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:20}
+.ac{position:relative}.ac .opts{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:30;background:var(--card);border:1px solid var(--br);border-radius:12px;box-shadow:0 8px 24px #0003;max-height:250px;overflow:auto;display:none}
+.ac .opts.on{display:block}.ac .opt{padding:11px 12px;cursor:pointer;border-bottom:1px solid var(--br);font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ac .opt:last-child{border-bottom:0}.ac .opt:hover,.ac .opt.sel{background:var(--bg);color:var(--pr)}.ac .opt b{font-weight:800;color:var(--pr)}
 </style></head><body><div id="toast"></div><div id="root"></div>
 <script>
 const SUPABASE_URL='https://jdwoukromsnjhbzuuwmg.supabase.co', SUPABASE_KEY='sb_publishable_t06ANgBontBuGUtC_DXQCQ_jgx2XZmx';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=s=>document.querySelector(s),root=$('#root');
 const fmt=n=>Number(n||0).toLocaleString('bs-BA'),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),fd=d=>d.split('-').reverse().join('.');
-let me,myp=[],plants=[],customers=[],products=[],stock=[],mov=[],tab,type='in',sel={},pre={},mode='login',rg={f:'',t:'',q:''},zero=false,mainOk=true;
-let mg='product',mq='',mz=false,msrt={k:'stanje',d:-1},hf={cu:'',pr:'',pl:'',kd:''},srt={k:'date',d:-1};
+let me,myp=[],plants=[],customers=[],products=[],stock=[],mov=[],profiles=[],tab,type='in',sel={},pre={},mode='login',rg={f:'',t:'',q:''},zero=false,mainOk=true;
+let mg='product',mq='',mz=false,msrt={k:'stanje',d:-1},hf={cu:'',pr:'',pl:'',kd:''},srt={k:'date',d:-1},ad='kor';
 function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',3200)}
 const errMsg=e=>{const m=String(e?.message||e);
  if(/row-level security|violates row-level/i.test(m))return 'Nemaš dozvolu za upis u glavni magacin – u bazi nedostaje pristup (pokreni migracija_izlaz.sql u Supabase → SQL Editor)';
  if(/Ta ruta nije dozvoljena/i.test(m))return 'Baza još ima staru funkciju izlaza – pokreni migracija_izlaz.sql u Supabase → SQL Editor';
  return m};
 async function all(q){let o=[],i=0;for(;;){const{data,error}=await q().range(i,i+999);if(error)throw error;o=o.concat(data);if(data.length<1000)return o;i+=1000}}
-const up=()=>me.role==='upravnik';
+const up=()=>me.role==='upravnik',adm=()=>me.role==='admin',mgr=()=>up()||adm();
+const reloadBase=async()=>{[customers,products,plants]=await Promise.all([all(()=>sb.from('customers').select('*').order('name')),all(()=>sb.from('products').select('*').order('name')),all(()=>sb.from('plants').select('*').order('name'))])};
+// autocomplete: filtrira listu dok kucaš, prvo one koje počinju upisanim tekstom
+function ac(el,list,cb){if(!el)return;const box=document.createElement('div');box.className='opts';el.parentNode.appendChild(box);
+ let items=[],i=-1,skip=false;
+ const close=()=>{box.classList.remove('on');box.innerHTML='';i=-1};
+ const paint=()=>{const q=el.value.trim().toLowerCase(),allv=[...new Set(list().filter(x=>x!=null&&String(x)!==''))];
+  items=(q?allv.filter(x=>x.toLowerCase().includes(q)):allv.slice()).sort((a,b)=>((a.toLowerCase().startsWith(q)?0:1)-(b.toLowerCase().startsWith(q)?0:1))||a.localeCompare(b,'bs',{numeric:true})).slice(0,60);
+  if(!items.length)return close();
+  box.innerHTML=items.map((x,n)=>{const s=x.toLowerCase(),p=q?s.indexOf(q):-1,h=p>=0?esc(x.slice(0,p))+'<b>'+esc(x.slice(p,p+q.length))+'</b>'+esc(x.slice(p+q.length)):esc(x);return `<div class="opt${n===i?' sel':''}" data-v="${esc(x)}">${h}</div>`}).join('');
+  box.classList.add('on');
+  box.querySelectorAll('[data-v]').forEach(d=>d.onmousedown=e=>{e.preventDefault();pick(d.dataset.v)})};
+ const pick=v=>{skip=true;el.value=v;cb&&cb(v);close();el.dispatchEvent(new Event('input',{bubbles:true}));skip=false};
+ el.addEventListener('focus',()=>{i=-1;paint()});
+ el.addEventListener('input',()=>{if(skip)return;i=-1;paint()});
+ el.addEventListener('blur',()=>setTimeout(close,150));
+ el.addEventListener('keydown',e=>{if(!box.classList.contains('on')||!items.length)return;
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();i=(i+(e.key==='ArrowDown'?1:-1)+items.length)%items.length;paint();const s=box.querySelector('.sel');if(s)s.scrollIntoView({block:'nearest'})}
+  else if(e.key==='Enter'){if(i>=0){e.preventDefault();pick(items[i])}}
+  else if(e.key==='Escape')close()})}
 async function ens(tb,val,list,ex={}){let f=list.find(x=>x.name.toLowerCase()===val.toLowerCase());if(f)return f;const{data,error}=await sb.from(tb).insert({name:val,...ex}).select().single();if(error)throw error;list.push(data);return data}
 async function init(){const{data:{session}}=await sb.auth.getSession();session?boot():authView()}
 function authView(){
@@ -62,20 +84,22 @@ async function boot(){try{
  const{data:{user}}=await sb.auth.getUser();
  me=(await sb.from('profiles').select('*,plants(name)').eq('id',user.id).single()).data;
  [customers,products,plants]=await Promise.all([all(()=>sb.from('customers').select('*').order('name')),all(()=>sb.from('products').select('*').order('name')),all(()=>sb.from('plants').select('*').order('name'))]);
- myp=up()?plants:((await sb.from('user_plants').select('plants(id,name)')).data||[]).map(x=>x.plants);tab=up()?'magacin':'unos';
- try{mainOk=up()?true:(await sb.rpc('can_plant',{pid:plants.find(p=>p.is_main)?.id})).data===true}catch{mainOk=up()}await loadAll();shell()}catch(e){toast(errMsg(e));authView()}}
+ myp=mgr()?plants:((await sb.from('user_plants').select('plants(id,name)')).data||[]).map(x=>x.plants);tab=mgr()?'magacin':'unos';
+ try{mainOk=mgr()?true:(await sb.rpc('can_plant',{pid:plants.find(p=>p.is_main)?.id})).data===true}catch{mainOk=mgr()}
+ if(adm())profiles=await all(()=>sb.from('profiles').select('*').order('email'));
+ await loadAll();shell()}catch(e){toast(errMsg(e));authView()}}
 const mv=async()=>{const b='*,customers(name),products(name)',o=q=>q.order('date',{ascending:false}).order('created_at',{ascending:false});
  try{return await all(()=>o(sb.from('movements').select(b+',plants!movements_plant_id_fkey(name),to:plants!movements_to_plant_fkey(name)')))}
  catch(e){const m=String(e?.message||e);if(!/to_plant|relationship|embed|PGRST|42703/i.test(m))throw e;
   return await all(()=>o(sb.from('movements').select(b+',plants(name)')))}};
 async function loadAll(){[stock,mov]=await Promise.all([all(()=>sb.from('v_stock').select('*').order('customer')),mv()]);
- if(!up()){const mid=plants.find(p=>p.is_main)?.id;stock=stock.filter(s=>s.plant_id===mid);mov=mov.filter(m=>m.plant_id===mid)}}
-const tabs=()=>up()?[['magacin','📦','Magacin'],['evid','🗓','Historija']]:[['unos','📦','Magacin'],['stanje','📊','Stanje'],['evid','🗓','Historija']];
-function shell(){root.innerHTML=`<header><div><b>📦 Magacin</b><small>${esc(me.full_name||me.email)} · ${up()?'Upravnik':'Magacin'}</small></div><button id="lo">Odjava</button></header>
+ if(!mgr()){const mid=plants.find(p=>p.is_main)?.id;stock=stock.filter(s=>s.plant_id===mid);mov=mov.filter(m=>m.plant_id===mid)}}
+const tabs=()=>adm()?[['magacin','📦','Magacin'],['evid','🗓','Historija'],['unos','⬇','Unos'],['admin','⚙️','Admin']]:up()?[['magacin','📦','Magacin'],['evid','🗓','Historija']]:[['unos','📦','Magacin'],['stanje','📊','Stanje'],['evid','🗓','Historija']];
+function shell(){root.innerHTML=`<header><div><b>📦 Magacin</b><small>${esc(me.full_name||me.email)} · ${adm()?'Admin':up()?'Upravnik':'Magacin'}</small></div><button id="lo">Odjava</button></header>
  <main id="v"></main><nav>${tabs().map(t=>`<button data-t="${t[0]}" class="${t[0]===tab?'on':''}"><span>${t[1]}</span>${t[2]}</button>`).join('')}</nav>`;
  $('#lo').onclick=async()=>{await sb.auth.signOut();me=null;authView()};
  document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;shell()});view()}
-const view=()=>({unos:vUnos,stanje:vStanje,magacin:vMagacin,evid:vEvid,pogoni:()=>vGroup('plant'),kupci:()=>vGroup('customer'),proizvodi:()=>vGroup('product'),otprema:vOtprema})[tab]();
+const view=()=>({unos:vUnos,stanje:vStanje,magacin:vMagacin,evid:vEvid,admin:vAdmin,pogoni:()=>vGroup('plant'),kupci:()=>vGroup('customer'),proizvodi:()=>vGroup('product'),otprema:vOtprema})[tab]();
 const same=(s,m)=>m.plant_id===s.plant_id&&m.customer_id===s.customer_id&&m.product_id===s.product_id&&(m.serija||'')===s.serija;
 const inR=m=>(!rg.f||m.date>=rg.f)&&(!rg.t||m.date<=rg.t);
 const mainId=()=>plants.find(p=>p.is_main)?.id;
@@ -91,9 +115,9 @@ function vUnos(){const v=$('#v'),mag=plants.find(p=>p.is_main),mid=()=>mag?.id,s
  <label id="dl">Datum ${type==='in'?'ulaza':'izlaza'}</label><input id="dt" type="date" value="${new Date().toISOString().slice(0,10)}">
  <label>Magacin</label><input value="${esc(mag.name)}" readonly>
  <div id="dw"></div>
- <label>Kupac</label><input id="cu" list="cl" placeholder="odaberi ili upiši novog"><datalist id="cl">${customers.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist>
- <label>Šifra artikla</label><input id="co" list="pl2" placeholder="npr. LP-1"><datalist id="pl2">${products.map(p=>`<option value="${esc(p.name)}">`).join('')}</datalist>
- <label>Serija</label><input id="se" list="sl" placeholder="broj serije"><datalist id="sl">${ser.map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
+ <label>Kupac</label><div class="ac"><input id="cu" placeholder="odaberi ili upiši novog" autocomplete="off" autocapitalize="none"></div>
+ <label>Šifra artikla</label><div class="ac"><input id="co" placeholder="npr. LP-1" autocomplete="off" autocapitalize="characters"></div>
+ <label>Serija</label><div class="ac"><input id="se" placeholder="broj serije" autocomplete="off"></div>
  <label>Količina (kom)</label><input id="qt" type="number" inputmode="numeric" min="1">
  <label>Nalog / napomena (nije obavezno)</label><input id="nt"><div class="hint" id="h" style="display:none"></div><button class="btn" id="sv">Spremi</button></div>`;
  const low=i=>$('#'+i).value.trim().toLowerCase(),
@@ -103,6 +127,7 @@ function vUnos(){const v=$('#v'),mag=plants.find(p=>p.is_main),mid=()=>mag?.id,s
    h.style.display=c&&p?'block':'none';
    h.innerHTML=type==='out'?(s&&s.stanje>0?`Na stanju u magacinu: ${fmt(s.stanje)} kom`:'<span class="out">Nema tog artikla na stanju u magacinu</span>'):`Trenutno stanje: ${fmt(s?.stanje)} kom`};
  drawDest();['cu','co','se'].forEach(i=>{const e=$('#'+i);if(e){e.oninput=upd;e.onchange=upd}});upd();
+ ac($('#cu'),()=>customers.map(c=>c.name),upd);ac($('#co'),()=>products.map(p=>p.name),upd);ac($('#se'),()=>ser,upd);
  v.querySelectorAll('[data-ty]').forEach(b=>b.onclick=()=>{type=b.dataset.ty;v.querySelectorAll('[data-ty]').forEach(x=>x.classList.toggle('on',x===b));$('#dl').textContent='Datum '+(type==='in'?'ulaza':'izlaza');drawDest();upd()});
  $('#sv').onclick=async()=>{try{const cn=$('#cu').value.trim(),pn=$('#co').value.trim(),se=$('#se').value.trim(),q=+$('#qt').value;
   if(!cn||!pn||!q)return toast('Upiši kupca, šifru artikla i količinu');
@@ -119,12 +144,13 @@ function vUnos(){const v=$('#v'),mag=plants.find(p=>p.is_main),mid=()=>mag?.id,s
 function dlg(t,inf,body,go,bt,ok){const o=document.createElement('div');o.className='ov';o.innerHTML=`<div class="card" style="width:min(420px,92vw)"><b>${t}</b><div class="mu">${inf}</div>${body}<button class="btn" id="tg">${bt||'Prebaci'}</button><button class="link" id="tx">Odustani</button></div>`;document.body.appendChild(o);
  $('#tx').onclick=()=>o.remove();$('#tg').onclick=async()=>{try{await go();o.remove();await loadAll();toast(ok||'✅ Prebačeno');view()}catch(e){toast(e.message)}}}
 const info=s=>`${esc(s.customer)} · ${esc(s.product)}${s.serija?' · '+esc(s.serija):''} · pogon ${esc(s.plant)} · stanje ${fmt(s.stanje)} kom`,qty=s=>`<label>Količina (kom)</label><input id="tq" type="number" min="1" max="${s.stanje}" value="${s.stanje}">`;
-function transfer(s){dlg('Prebaci na drugog kupca',info(s),`<label>Novi kupac</label><input id="tc" list="cl2" placeholder="odaberi ili upiši"><datalist id="cl2">${customers.filter(c=>c.id!==s.customer_id).map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist>`+qty(s),async()=>{
+function transfer(s){dlg('Prebaci na drugog kupca',info(s),`<label>Novi kupac</label><div class="ac"><input id="tc" placeholder="odaberi ili upiši" autocomplete="off" autocapitalize="none"></div>`+qty(s),async()=>{
  const n=$('#tc').value.trim();if(!n)throw Error('Upiši kupca');const c=await ens('customers',n,customers);
- const{error}=await sb.rpc('transfer_stock',{p_plant:s.plant_id,p_product:s.product_id,p_serija:s.serija,p_from:s.customer_id,p_to:c.id,p_qty:+$('#tq').value});if(error)throw error})}
+ const{error}=await sb.rpc('transfer_stock',{p_plant:s.plant_id,p_product:s.product_id,p_serija:s.serija,p_from:s.customer_id,p_to:c.id,p_qty:+$('#tq').value});if(error)throw error});
+ ac($('#tc'),()=>customers.filter(c=>c.id!==s.customer_id).map(c=>c.name))}
 function edit(m){dlg('Ispravka unosa',`${esc(m.plants.name)} · ${esc(m.customers.name)} · ${esc(m.products.name)}${m.serija?' · '+esc(m.serija):''}${m.kind==='pogon'||m.kind==='prebacivanje'?'<br>Ispravka važi i za drugu stranu prebacivanja.':''}`,`<label>Količina (kom)</label><input id="eq" type="number" min="1" value="${m.qty_in||m.qty_out}"><label>Datum</label><input id="ed" type="date" value="${m.date}">`,async()=>{
  const{error}=await sb.rpc('ispravi_unos',{p_id:m.id,p_qty:+$('#eq').value,p_date:$('#ed').value});if(error)throw error},'Spremi ispravku','✅ Ispravljeno')}
-const act=m=>up()?`<button data-e="${m.id}" class="x">✏️</button><button data-x="${m.id}" class="x">🗑</button>`:(m.kind==='promet'?`<button data-d="${m.id}" class="x">🗑</button>`:''),
+const act=m=>mgr()?`<button data-e="${m.id}" class="x">✏️</button><button data-x="${m.id}" class="x">🗑</button>`:(m.kind==='promet'?`<button data-d="${m.id}" class="x">🗑</button>`:''),
  tg=m=>m.kind==='promet'?'':`<span class="tag">${{otprema:'otprema',pogon:'pogon',izlaz:'izlaz',prebacivanje:'prebačeno'}[m.kind]||m.kind}</span> `;
 const hist=ms=>ms.length?`<div class="wrap"><table><tr><th>Datum ulaza</th><th>Datum izlaza</th><th class="n">Ulaz</th><th class="n">Izlaz</th><th>Napomena</th><th></th></tr>${ms.map(m=>`<tr><td>${m.qty_in?fd(m.date):''}</td><td>${m.qty_out?fd(m.date):''}</td><td class="n in">${m.qty_in?fmt(m.qty_in):''}</td><td class="n out">${m.qty_out?fmt(m.qty_out):''}</td><td>${tg(m)}${esc(m.note)}</td><td>${act(m)}</td></tr>`).join('')}</table></div>`:'<p class="mu">Nema transakcija u odabranom periodu.</p>';
 function bind(){document.querySelectorAll('[data-d]').forEach(b=>b.onclick=async e=>{e.preventDefault();if(!confirm('Obrisati ovaj unos?'))return;const{error}=await sb.from('movements').delete().eq('id',b.dataset.d);if(error)return toast(error.message);await loadAll();view()});
@@ -134,6 +160,47 @@ function bind(){document.querySelectorAll('[data-d]').forEach(b=>b.onclick=async
 const card=(s,labels)=>{labels=labels||[s.customer,s.product,s.serija?'ser. '+s.serija:''].filter(Boolean).map(esc).join(' · ');const ms=mov.filter(m=>same(s,m)&&inR(m)),i=stock.indexOf(s);
  return `<details class="card"><summary class="row"><div><b>${labels}</b><div class="mu"><span class="in">▼ ${fmt(s.qty_in)}</span> · <span class="out">▲ ${fmt(s.qty_out)}</span>${s.last_in?` · zadnji ulaz ${fd(s.last_in)}`:''}${s.last_out?` · zadnji izlaz ${fd(s.last_out)}`:''}</div></div><div class="big">${fmt(s.stanje)}</div></summary>
  <div style="margin-top:10px">${hist(ms)}${!up()&&s.stanje>0?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="chip" data-tr="${i}">🔁 Prebaci na drugog kupca</button></div>`:''}</div></details>`};
+const roleName={vodja:'Vođa',upravnik:'Upravnik',admin:'Admin'};
+function vAdmin(){const v=$('#v'),seg=[['kor','👤 Korisnici'],['art','📦 Artikli'],['kup','🏢 Kupci'],['pog','🏭 Pogoni']];
+ let b='';
+ if(ad==='kor')b=`<div class="card"><div class="row"><b>Korisnici <span class="mu">(${profiles.length})</span></b><button class="chip" id="nu">+ Novi</button></div><div class="wrap"><table><tr><th>Ime</th><th>Prijava</th><th>Rola</th><th></th></tr>${profiles.map(p=>`<tr><td>${esc(p.full_name||'—')}</td><td>${esc(p.email||'')}</td><td><span class="tag">${roleName[p.role]||p.role}</span></td><td style="white-space:nowrap"><button class="x" data-pe="${p.id}">✏️</button><button class="x" data-px="${p.id}">🗑</button></td></tr>`).join('')}</table></div></div>`;
+ else if(ad==='art')b=`<div class="card"><div class="row"><b>Artikli <span class="mu">(${products.length})</span></b><button class="chip" id="na">+ Novi</button></div><div class="wrap"><table><tr><th>Šifra / naziv</th><th></th></tr>${products.map(p=>`<tr><td>${esc(p.name)}</td><td style="white-space:nowrap"><button class="x" data-ae="${p.id}">✏️</button><button class="x" data-ax="${p.id}">🗑</button></td></tr>`).join('')}</table></div></div>`;
+ else if(ad==='kup')b=`<div class="card"><div class="row"><b>Kupci <span class="mu">(${customers.length})</span></b><button class="chip" id="nc">+ Novi</button></div><div class="wrap"><table><tr><th>Kupac</th><th></th></tr>${customers.map(c=>`<tr><td>${esc(c.name)}</td><td style="white-space:nowrap"><button class="x" data-ce="${c.id}">✏️</button><button class="x" data-cx="${c.id}">🗑</button></td></tr>`).join('')}</table></div></div>`;
+ else b=`<div class="card"><div class="row"><b>Pogoni <span class="mu">(${plants.length})</span></b><button class="chip" id="np">+ Novi</button></div><div class="wrap"><table><tr><th>Pogon</th><th></th></tr>${plants.map(p=>`<tr><td>${esc(p.name)}${p.is_main?' <span class="tag">glavni magacin</span>':''}</td><td style="white-space:nowrap"><button class="x" data-pre="${p.id}">✏️</button><button class="x" data-prx="${p.id}">🗑</button></td></tr>`).join('')}</table></div></div>`;
+ v.innerHTML=`<div class="card"><div class="chips" style="margin-bottom:0;padding-bottom:0">${seg.map(([k,l])=>`<button class="chip ${ad===k?'on':''}" data-ad="${k}">${l}</button>`).join('')}</div><div class="mu" style="margin-top:10px">Admin panel — dodavanje, izmjena i brisanje. Zapis se može obrisati samo ako se ne koristi u transakcijama.</div></div>${b}`;
+ v.querySelectorAll('[data-ad]').forEach(x=>x.onclick=()=>{ad=x.dataset.ad;vAdmin()});
+ const reload=async()=>{await reloadBase();await loadAll()},
+  inp=l=>`<label>${l}</label><input id="nn" autocomplete="off">`,
+  del=async(tb,id,msg)=>{if(!confirm('Obrisati ovaj zapis?'))return;try{const{error}=await sb.from(tb).delete().eq('id',id);if(error)throw error;await reload();toast('✅ Obrisano');vAdmin()}catch(e){toast(/23503|foreign key|violates/i.test([e.code,e.message].join(' '))?msg:errMsg(e))}};
+ if(ad==='kor'){
+  $('#nu').onclick=()=>dlg('Novi korisnik','Prijava ide korisničkim imenom ili e-mailom',`<label>Ime i prezime</label><input id="un" autocomplete="off"><label>Korisničko ime ili e-mail</label><input id="ue" placeholder="npr. marko ili marko@pobjeda.com" autocomplete="off" autocapitalize="none"><label>Lozinka</label><input id="upw" placeholder="min. 4 znaka"><label>Rola</label><select id="ur"><option value="vodja">Vođa (magacin – ulaz/izlaz)</option><option value="upravnik">Upravnik (pregled)</option><option value="admin">Admin (sve)</option></select>`,async()=>{
+   const em=$('#ue').value.trim().toLowerCase(),email=em.includes('@')?em:em+'@pobjeda.com';
+   const{error}=await sb.rpc('admin_dodaj_korisnika',{p_email:email,p_pass:$('#upw').value,p_name:$('#un').value.trim()||email,p_role:$('#ur').value});if(error)throw error;
+   profiles=await all(()=>sb.from('profiles').select('*').order('email'))},'Dodaj','✅ Korisnik dodan');
+  v.querySelectorAll('[data-pe]').forEach(x=>x.onclick=()=>{const p=profiles.find(y=>y.id===x.dataset.pe);if(!p)return;
+   dlg('Izmjena korisnika',esc(p.email||''),`<label>Ime i prezime</label><input id="un" value="${esc(p.full_name||'')}" autocomplete="off"><label>Korisničko ime / e-mail</label><input id="ue" value="${esc(p.email||'')}" autocomplete="off" autocapitalize="none"><label>Nova lozinka</label><input id="upw" placeholder="ostavi prazno = ne mijenja se"><label>Rola</label><select id="ur">${['vodja','upravnik','admin'].map(r=>`<option value="${r}" ${p.role===r?'selected':''}>${roleName[r]}</option>`).join('')}</select>`,async()=>{
+    const em=$('#ue').value.trim().toLowerCase(),email=em.includes('@')?em:em+'@pobjeda.com';
+    const{error}=await sb.rpc('admin_izmjeni_korisnika',{p_id:p.id,p_email:email,p_name:$('#un').value.trim()||p.full_name||email,p_role:$('#ur').value,p_pass:$('#upw').value.trim()||null});if(error)throw error;
+    profiles=await all(()=>sb.from('profiles').select('*').order('email'));
+    if(p.id===me.id)toast('Promjena tvoje role važi nakon ponovne prijave')},'Spremi','✅ Sačuvano')});
+  v.querySelectorAll('[data-px]').forEach(x=>x.onclick=async()=>{const p=profiles.find(y=>y.id===x.dataset.px);if(!p)return;
+   if(!confirm('Obrisati korisnika '+p.email+'?'))return;
+   try{const{error}=await sb.rpc('admin_obrisi_korisnika',{p_id:p.id});if(error)throw error;profiles=await all(()=>sb.from('profiles').select('*').order('email'));toast('✅ Obrisano');vAdmin()}catch(e){toast(errMsg(e))}})}
+ if(ad==='art'){
+  $('#na').onclick=()=>dlg('Novi artikal','Šifra artikla, npr. LP-1',inp('Šifra / naziv'),async()=>{const n=$('#nn').value.trim();if(!n)throw Error('Upiši šifru artikla');const{error}=await sb.from('products').insert({name:n});if(error)throw error;await reloadBase()},'Dodaj','✅ Artikal dodan');
+  v.querySelectorAll('[data-ae]').forEach(x=>x.onclick=()=>{const p=products.find(y=>y.id===x.dataset.ae);if(!p)return;
+   dlg('Izmjena artikla',esc(p.name),`<label>Šifra / naziv</label><input id="nn" value="${esc(p.name)}" autocomplete="off">`,async()=>{const n=$('#nn').value.trim();if(!n)throw Error('Upiši šifru artikla');const{error}=await sb.from('products').update({name:n}).eq('id',p.id);if(error)throw error;await reloadBase()},'Spremi','✅ Sačuvano')});
+  v.querySelectorAll('[data-ax]').forEach(x=>x.onclick=()=>del('products',x.dataset.ax,'Ne može se obrisati – artikal se koristi u transakcijama'))}
+ if(ad==='kup'){
+  $('#nc').onclick=()=>dlg('Novi kupac','Naziv kupca',inp('Naziv kupca'),async()=>{const n=$('#nn').value.trim();if(!n)throw Error('Upiši naziv kupca');const{error}=await sb.from('customers').insert({name:n});if(error)throw error;await reloadBase()},'Dodaj','✅ Kupac dodan');
+  v.querySelectorAll('[data-ce]').forEach(x=>x.onclick=()=>{const c=customers.find(y=>y.id===x.dataset.ce);if(!c)return;
+   dlg('Izmjena kupca',esc(c.name),`<label>Naziv kupca</label><input id="nn" value="${esc(c.name)}" autocomplete="off">`,async()=>{const n=$('#nn').value.trim();if(!n)throw Error('Upiši naziv kupca');const{error}=await sb.from('customers').update({name:n}).eq('id',c.id);if(error)throw error;await reloadBase()},'Spremi','✅ Sačuvano')});
+  v.querySelectorAll('[data-cx]').forEach(x=>x.onclick=()=>del('customers',x.dataset.cx,'Ne može se obrisati – kupac se koristi u transakcijama'))}
+ if(ad==='pog'){
+  $('#np').onclick=()=>dlg('Novi pogon','Naziv pogona (npr. 12, 12A, 24A)',inp('Naziv pogona'),async()=>{const n=$('#nn').value.trim();if(!n)throw Error('Upiši naziv pogona');const{error}=await sb.from('plants').insert({name:n});if(error)throw error;await reloadBase()},'Dodaj','✅ Pogon dodan');
+  v.querySelectorAll('[data-pre]').forEach(x=>x.onclick=()=>{const p=plants.find(y=>y.id===x.dataset.pre);if(!p)return;
+   dlg('Izmjena pogona',esc(p.name),`<label>Naziv pogona</label><input id="nn" value="${esc(p.name)}" autocomplete="off">`,async()=>{const n=$('#nn').value.trim();if(!n)throw Error('Upiši naziv pogona');const{error}=await sb.from('plants').update({name:n}).eq('id',p.id);if(error)throw error;await reloadBase()},'Spremi','✅ Sačuvano')});
+  v.querySelectorAll('[data-prx]').forEach(x=>x.onclick=()=>{const p=plants.find(y=>y.id===x.dataset.prx);if(!p)return;if(p.is_main)return toast('Glavni magacin se ne može obrisati');del('plants',p.id,'Ne može se obrisati – pogon se koristi u transakcijama')})}}
 function vMagacin(){const v=$('#v'),m=mainId(),rows=stock.filter(s=>s.plant_id===m),dim=mg,other=dim==='product'?'customer':'product',total=rows.reduce((a,s)=>a+s.stanje,0),live=[...new Set(rows.filter(s=>s.stanje!==0).map(s=>s[dim]))].length;
  v.innerHTML=`<div class="card hero"><div class="mu">GLAVNI MAGACIN · STANJE NAKON IZLAZA</div><div class="huge">${fmt(total)} <small>kom</small></div><div class="mu" style="margin-top:4px">${live} ${dim==='product'?'artikala':'kupaca'} na stanju</div></div>
  <div class="card"><div class="seg"><button data-mg="product" class="${dim==='product'?'on':''}">📦 Po proizvodu</button><button data-mg="customer" class="${dim==='customer'?'on':''}">🏢 Po kupcu</button></div>

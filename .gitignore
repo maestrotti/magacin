@@ -1,2 +1,3 @@
 schema.sql
-schema.local.sql*.sql
+admin.sql
+schema.local.sql
