@@ -23,9 +23,10 @@ Vođa (mok / Elmir Kentra) radi po istom principu u **Pogonu MOK**:
 - **Ulaz** – roba ulazi u Pogon MOK i tu se pamti stanje.
 - **Izlaz** – odredište je **glavni magacin (magacin čahure)**; stanje se skida samo sa Pogon MOK, a u Historiji ostaje dan, količina, kupac i odredište. Stanje glavnog magacina se ovim izlazom **ne povećava**.
 - Elmir vidi **samo** podatke Pogon MOK. Belmin vidi **samo** glavni magacin.
+- Ako je za istog kupca i artikal na stanju **samo jedna serija**, polje **Serija** se popuni automatski; ako ih je više, ispod polja se prikažu dostupne serije.
 
 Upravnik (o.senad) ima dva taba:
-- **📦 Magacin** – stanje **nakon svih izlaza**, sa prekidačem između **glavnog magacina** i **Pogona MOK** (vidi oba). Ukupno komada + lista sa prekidačem **Po proizvodu / Po kupcu**, pretragom, sortiranjem (Stanje / Naziv / Ulaz / Izlaz / Zadnji izlaz) i CSV izvozom. Klik na stavku otvara detalje (kupac/proizvod/serija, ulaz, izlaz, stanje).
+- **📦 Magacin** – stanje **nakon svih izlaza**, sa prekidačem između **glavnog magacina** i **Pogona MOK** (vidi oba). Ukupno komada + **zbir po kupcima na vrhu** (da se odmah vidi koliko koji kupac ima robe). Lista ima prekidač **Proizvod / kupac** i **Po kupcu**: u prikazu po proizvodu ista šifra kod različitog kupca se prikazuje kao **zasebna kartica** (kupac je istaknut u kartici), pa se tačno zna šta je čije. Uz to idu pretraga, sortiranje (Stanje / Naziv / Ulaz / Izlaz / Zadnji izlaz) i CSV izvoz (u prikazu po proizvodu CSV ima i kolonu **Kupac**). Klik na stavku otvara detalje (serija, ulaz, izlaz, stanje).
 - **🗓 Historija** – sve transakcije iz **oba magacina** sa filterima: **Od/Do datuma, kupac, proizvod, magacin (odakle), odredište (kuda je otišlo), tip (ulazi/izlazi)** i tekstualna pretraga. Sortiranje klikom na zaglavlje kolone (Datum, Iz, Odredište, Kupac, Proizvod, Ulaz, Izlaz). Gore je zbir ulaza/izlaza za trenutni filter, a CSV dugme izvozi filtrirano stanje.
 
 **Admin** (korisničko ime `admin`; lozinka je u `admin.sql`, koji nije na GitHubu) ima sve što i upravnik, plus:

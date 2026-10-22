@@ -31,6 +31,9 @@ table{width:100%;border-collapse:collapse}td,th{padding:10px 6px;border-bottom:1
 #toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#10231f;color:#fff;padding:12px 18px;border-radius:12px;z-index:9;display:none;max-width:90%}
 .auth{max-width:420px;margin:8vh auto;padding:0 16px}.auth h1{text-align:center;color:var(--pr)}.link{background:none;border:0;color:var(--pr);font-weight:600;width:100%;margin-top:12px;padding:8px}
 .hero{background:linear-gradient(135deg,var(--pr),#0b5a54);color:#fff;border:0}.hero .mu,.hero label{color:#ffffffcc}.huge{font-size:44px;font-weight:800;line-height:1.1}.huge small{font-size:18px;opacity:.8}.hero .chip{background:#ffffff26;color:#fff;border:0}
+.cust{max-height:200px;overflow:auto;margin-top:8px;padding-top:4px;border-top:1px solid #ffffff33}
+.crow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:6px 2px;border-bottom:1px solid #ffffff1f;font-size:14px}
+.crow:last-child{border-bottom:0}.crow b{white-space:nowrap}.crow b small{font-size:11px;opacity:.75}
 details.card summary{list-style:none;cursor:pointer}details.card summary::-webkit-details-marker{display:none}details[open]>summary{border-bottom:1px solid var(--br);padding-bottom:10px}
 .tag{background:var(--bg);border:1px solid var(--br);border-radius:6px;font-size:11px;padding:1px 6px;color:var(--mu)}.x{border:0;background:none}
 .grid3{display:grid;grid-template-columns:1fr 1fr;gap:10px}.grid3>div:last-child:nth-child(3){grid-column:1/-1}@media(min-width:760px){.grid3{grid-template-columns:1fr 1fr 2fr}}
@@ -126,20 +129,27 @@ function vUnos(){const v=$('#v'),mag=plants.find(p=>p.id===storeId())||myStore,m
  <label>Količina (kom)</label><input id="qt" type="number" inputmode="numeric" min="1">
  <label>Nalog / napomena (nije obavezno)</label><input id="nt"><div class="hint" id="h" style="display:none"></div><button class="btn" id="sv">Spremi</button></div>`;
  const low=i=>$('#'+i).value.trim().toLowerCase(),
-  find=()=>stock.find(x=>x.plant_id===mid()&&x.customer.toLowerCase()===low('cu')&&x.product.toLowerCase()===low('co')&&x.serija.toLowerCase()===low('se')),
+  rowsFor=()=>{const c=low('cu'),p=low('co');return c&&p?stock.filter(x=>x.plant_id===mid()&&x.customer.toLowerCase()===c&&x.product.toLowerCase()===p):[]},
+  find=()=>rowsFor().find(x=>x.serija.toLowerCase()===low('se')),
+  autoSerial=()=>{const se=$('#se');if(type!=='out'||!se||se.value.trim())return;const r=rowsFor().filter(x=>x.stanje>0);if(r.length===1)se.value=r[0].serija||''},
   drawDest=()=>{$('#dw').innerHTML=type==='out'?`<label>Odredište (kuda ide)</label><select id="dst">${dest.length?dest.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join(''):'<option value="">— nema odredišta —</option>'}</select>`:''},
   upd=()=>{const c=low('cu'),p=low('co'),s=find(),h=$('#h');if(!h)return;
+   const rows=rowsFor().filter(x=>x.stanje>0),opts=[...new Set(rows.map(x=>x.serija||'(bez serije)'))];
    h.style.display=c&&p?'block':'none';
-   h.innerHTML=type==='out'?(s&&s.stanje>0?`Na stanju u magacinu: ${fmt(s.stanje)} kom`:'<span class="out">Nema tog artikla na stanju u magacinu</span>'):`Trenutno stanje: ${fmt(s?.stanje)} kom`};
- drawDest();['cu','co','se'].forEach(i=>{const e=$('#'+i);if(e){e.oninput=upd;e.onchange=upd}});upd();
- ac($('#cu'),()=>customers.map(c=>c.name),upd);ac($('#co'),()=>products.map(p=>p.name),upd);ac($('#se'),()=>ser,upd);
+   if(type==='out')h.innerHTML=s&&s.stanje>0?`Na stanju u magacinu: ${fmt(s.stanje)} kom`
+    :rows.length?`<span class="out">${s?'Nema te serije na stanju.':'Odaberi seriju.'}</span> Dostupno: <b>${opts.map(esc).join(', ')}</b>`
+    :'<span class="out">Nema tog artikla na stanju u magacinu</span>';
+   else h.innerHTML=`Trenutno stanje: ${fmt(s?.stanje)} kom`};
+ drawDest();['cu','co'].forEach(i=>{const e=$('#'+i);if(e){e.oninput=upd;e.onchange=()=>{autoSerial();upd()}}});const seEl=$('#se');if(seEl){seEl.oninput=upd;seEl.onchange=upd}upd();
+ ac($('#cu'),()=>customers.map(c=>c.name),()=>{autoSerial();upd()});ac($('#co'),()=>products.map(p=>p.name),()=>{autoSerial();upd()});ac($('#se'),()=>ser,upd);
  v.querySelectorAll('[data-ust]').forEach(b=>b.onclick=()=>{mgStore=b.dataset.ust;vUnos()});
  v.querySelectorAll('[data-ty]').forEach(b=>b.onclick=()=>{type=b.dataset.ty;v.querySelectorAll('[data-ty]').forEach(x=>x.classList.toggle('on',x===b));$('#dl').textContent='Datum '+(type==='in'?'ulaza':'izlaza');drawDest();upd()});
  $('#sv').onclick=async()=>{try{const cn=$('#cu').value.trim(),pn=$('#co').value.trim(),se=$('#se').value.trim(),q=+$('#qt').value;
   if(!cn||!pn||!q)return toast('Upiši kupca, šifru artikla i količinu');
-  const s=find();
+  let s=find();
+  if(type==='out'&&(!s||s.stanje<=0)&&!se){const r=rowsFor().filter(x=>x.stanje>0);if(r.length===1){s=r[0];$('#se').value=s.serija||''}}
   if(type==='out'){
-   if(!s||s.stanje<=0)return toast('Nema tog artikla na stanju u magacinu');
+   if(!s||s.stanje<=0){const r=rowsFor().filter(x=>x.stanje>0);return toast(r.length?`Odaberi seriju: ${r.map(x=>x.serija||'(bez serije)').join(', ')}`:'Nema tog artikla na stanju u magacinu')}
    const to=$('#dst')?.value;if(!to)return toast('Odaberi odredište');
    if(q>s.stanje)return toast(`Izlaz (${fmt(q)}) je veći od stanja (${fmt(s.stanje)})`);
    const{error}=await sb.rpc('izlaz',{p_plant:mid(),p_to:to,p_customer:s.customer_id,p_product:s.product_id,p_serija:s.serija,p_qty:q,p_date:$('#dt').value,p_note:$('#nt').value.trim()||null});if(error)throw error;
@@ -223,30 +233,38 @@ function vAdmin(){const v=$('#v'),seg=[['kor','👤 Korisnici'],['art','📦 Art
   v.querySelectorAll('[data-pre]').forEach(x=>x.onclick=()=>{const p=plants.find(y=>y.id===x.dataset.pre);if(!p)return;
    dlg('Izmjena pogona',esc(p.name),`<label>Naziv pogona</label><input id="nn" value="${esc(p.name)}" autocomplete="off">`,async()=>{const n=$('#nn').value.trim();if(!n)throw Error('Upiši naziv pogona');const{error}=await sb.from('plants').update({name:n}).eq('id',p.id);if(error)throw error;await reloadBase()},'Spremi','✅ Sačuvano')});
   v.querySelectorAll('[data-prx]').forEach(x=>x.onclick=()=>{const p=plants.find(y=>y.id===x.dataset.prx);if(!p)return;if(p.is_store||p.is_main)return toast('Magacin se ne može obrisati');del('plants',p.id)})}}
-function vMagacin(){const v=$('#v'),sts=stores(),m=storeId(),store=plants.find(p=>p.id===m),rows=stock.filter(s=>s.plant_id===m),dim=mg,other=dim==='product'?'customer':'product',total=rows.reduce((a,s)=>a+s.stanje,0),live=[...new Set(rows.filter(s=>s.stanje!==0).map(s=>s[dim]))].length;
+function vMagacin(){const v=$('#v'),sts=stores(),m=storeId(),store=plants.find(p=>p.id===m),rows=stock.filter(s=>s.plant_id===m),dim=mg,isP=dim==='product',
+ total=rows.reduce((a,s)=>a+s.stanje,0),liveP=new Set(rows.filter(s=>s.stanje!==0).map(s=>s.product_id)).size,liveC=new Set(rows.filter(s=>s.stanje!==0).map(s=>s.customer_id)).size;
  v.innerHTML=`${sts.length>1?`<div class="card"><div class="seg" style="flex-wrap:wrap">${sts.map(s=>`<button data-st="${s.id}" class="${s.id===m?'on':''}">${esc(s.name)}</button>`).join('')}</div></div>`:''}
- <div class="card hero"><div class="mu">${esc((store?.name||'MAGACIN').toUpperCase())} · STANJE NAKON IZLAZA</div><div class="huge">${fmt(total)} <small>kom</small></div><div class="mu" style="margin-top:4px">${live} ${dim==='product'?'artikala':'kupaca'} na stanju</div></div>
- <div class="card"><div class="seg"><button data-mg="product" class="${dim==='product'?'on':''}">📦 Po proizvodu</button><button data-mg="customer" class="${dim==='customer'?'on':''}">🏢 Po kupcu</button></div>
+ <div class="card hero"><div class="mu">${esc((store?.name||'MAGACIN').toUpperCase())} · STANJE NAKON IZLAZA</div><div class="huge">${fmt(total)} <small>kom</small></div><div class="mu" style="margin-top:4px">${liveP} artikala · ${liveC} kupaca na stanju</div><div id="hc"></div></div>
+ <div class="card"><div class="seg"><button data-mg="product" class="${isP?'on':''}">📦 Proizvod / kupac</button><button data-mg="customer" class="${!isP?'on':''}">🏢 Po kupcu</button></div>
  <label>Traži</label><input id="mq" value="${esc(mq)}" placeholder="naziv, kupac, serija…">
  <div class="row" style="margin-top:12px"><label style="margin:0"><input type="checkbox" id="mz" ${mz?'checked':''} style="width:auto"> prikaži i nulta stanja</label><button class="chip" id="ex">⬇ CSV</button></div>
  <div class="chips" style="margin-top:12px;padding-bottom:0;margin-bottom:0">${[['stanje','Stanje'],['name','Naziv'],['in','Ulaz'],['out','Izlaz'],['last','Zadnji izlaz']].map(([k,l])=>`<button class="chip ${msrt.k===k?'on':''}" data-so="${k}">${l}${msrt.k===k?(msrt.d<0?' ▼':' ▲'):''}</button>`).join('')}</div></div>
  <div id="l"></div>`;
  let cur=[];
  const draw=()=>{const g={};
-  rows.forEach(s=>{const x=g[s[dim]]||(g[s[dim]]={k:s[dim],qi:0,qo:0,st:0,last:'',items:[],set:new Set()});
-   x.qi+=s.qty_in;x.qo+=s.qty_out;x.st+=s.stanje;x.items.push(s);x.set.add(s[other]);if(s.last_out&&s.last_out>x.last)x.last=s.last_out});
+  // Po proizvodu se grupiše i po kupcu: ista šifra kod drugog kupca = zasebna kartica
+  rows.forEach(s=>{const key=isP?s.product_id+'|'+s.customer_id:s.customer_id,
+   x=g[key]||(g[key]={k:isP?s.product:s.customer,cu:isP?s.customer:'',qi:0,qo:0,st:0,last:'',items:[],set:new Set()});
+   x.qi+=s.qty_in;x.qo+=s.qty_out;x.st+=s.stanje;x.items.push(s);x.set.add(isP?s.serija:s.product);if(s.last_out&&s.last_out>x.last)x.last=s.last_out});
   let list=Object.values(g);
   if(!mz)list=list.filter(x=>x.st!==0);
-  const q=mq.trim().toLowerCase();if(q)list=list.filter(x=>x.k.toLowerCase().includes(q)||[...x.set].join(' ').toLowerCase().includes(q)||x.items.some(s=>(s.serija||'').toLowerCase().includes(q)));
-  const cmp=(a,b)=>{const k=msrt.k;if(k==='name')return a.k.localeCompare(b.k,'bs');if(k==='stanje')return a.st-b.st;if(k==='in')return a.qi-b.qi;if(k==='out')return a.qo-b.qo;return String(a.last||'').localeCompare(String(b.last||''))};
+  const q=mq.trim().toLowerCase();if(q)list=list.filter(x=>x.k.toLowerCase().includes(q)||x.cu.toLowerCase().includes(q)||[...x.set].join(' ').toLowerCase().includes(q)||x.items.some(s=>(s.serija||'').toLowerCase().includes(q)));
+  const cmp=(a,b)=>{const k=msrt.k;if(k==='name')return a.k.localeCompare(b.k,'bs')||a.cu.localeCompare(b.cu,'bs');if(k==='stanje')return a.st-b.st;if(k==='in')return a.qi-b.qi;if(k==='out')return a.qo-b.qo;return String(a.last||'').localeCompare(String(b.last||''))};
   list.sort((a,b)=>cmp(a,b)*msrt.d);cur=list;
-  $('#l').innerHTML=list.map(x=>`<details class="card"><summary class="row"><div><b>${esc(x.k)}</b><div class="mu">${x.set.size} ${dim==='product'?'kupaca':'artikala'} · <span class="in">▼ ${fmt(x.qi)}</span> · <span class="out">▲ ${fmt(x.qo)}</span>${x.last?' · zadnji izlaz '+fd(x.last):''}</div></div><div class="big">${fmt(x.st)}</div></summary><div class="wrap" style="margin-top:10px"><table><tr><th>${dim==='product'?'Kupac':'Proizvod'}</th><th>Serija</th><th class="n">Ulaz</th><th class="n">Izlaz</th><th class="n">Stanje</th></tr>${x.items.filter(s=>mz||s.stanje!==0).sort((a,b)=>b.stanje-a.stanje).map(s=>`<tr><td>${esc(s[other])}</td><td>${s.serija?esc(s.serija):'—'}</td><td class="n in">${fmt(s.qty_in)}</td><td class="n out">${fmt(s.qty_out)}</td><td class="n"><b>${fmt(s.stanje)}</b></td></tr>`).join('')}</table></div></details>`).join('')||'<p class="mu">Nema podataka za ovaj filter.</p>'};
+  // Zbir po kupcima za trenutni filter – prikazuje se na vrhu
+  const ct={};list.forEach(x=>x.items.forEach(s=>{const c=ct[s.customer_id]||(ct[s.customer_id]={n:s.customer,st:0});c.st+=s.stanje}));
+  let cl=Object.values(ct);if(!mz)cl=cl.filter(c=>c.st!==0);cl.sort((a,b)=>b.st-a.st||a.n.localeCompare(b.n,'bs'));
+  $('#hc').innerHTML=`<div class="cust"><div class="mu" style="margin:8px 0 2px;letter-spacing:.03em">PO KUPCIMA · STANJE</div>${cl.map(c=>`<div class="crow"><span>${esc(c.n)}</span><b>${fmt(c.st)} <small>kom</small></b></div>`).join('')||'<div class="crow"><span class="mu">nema stanja</span></div>'}</div>`;
+  $('#l').innerHTML=list.map(x=>`<details class="card"><summary class="row"><div><b>${esc(x.k)}</b>${isP?`<div class="mu">Kupac: <b style="color:var(--tx)">${esc(x.cu)}</b></div>`:''}<div class="mu">${isP?`${x.items.filter(s=>mz||s.stanje!==0).length} serija`:`${x.set.size} artikala`} · <span class="in">▼ ${fmt(x.qi)}</span> · <span class="out">▲ ${fmt(x.qo)}</span>${x.last?' · zadnji izlaz '+fd(x.last):''}</div></div><div class="big">${fmt(x.st)}</div></summary><div class="wrap" style="margin-top:10px"><table><tr>${isP?'<th>Serija</th>':'<th>Proizvod</th><th>Serija</th>'}<th class="n">Ulaz</th><th class="n">Izlaz</th><th class="n">Stanje</th></tr>${x.items.filter(s=>mz||s.stanje!==0).sort((a,b)=>b.stanje-a.stanje).map(s=>isP?`<tr><td>${s.serija?esc(s.serija):'—'}</td><td class="n in">${fmt(s.qty_in)}</td><td class="n out">${fmt(s.qty_out)}</td><td class="n"><b>${fmt(s.stanje)}</b></td></tr>`:`<tr><td>${esc(s.product)}</td><td>${s.serija?esc(s.serija):'—'}</td><td class="n in">${fmt(s.qty_in)}</td><td class="n out">${fmt(s.qty_out)}</td><td class="n"><b>${fmt(s.stanje)}</b></td></tr>`).join('')}</table></div></details>`).join('')||'<p class="mu">Nema podataka za ovaj filter.</p>'};
  $('#mq').oninput=e=>{mq=e.target.value;draw()};
  $('#mz').onchange=e=>{mz=e.target.checked;draw()};
  v.querySelectorAll('[data-mg]').forEach(b=>b.onclick=()=>{mg=b.dataset.mg;vMagacin()});
  v.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>{mgStore=b.dataset.st;mq='';vMagacin()});
  v.querySelectorAll('[data-so]').forEach(b=>b.onclick=()=>{const k=b.dataset.so;msrt=msrt.k===k?{k,d:-msrt.d}:{k,d:-1};vMagacin()});
- $('#ex').onclick=()=>{const l=[[dim==='product'?'Proizvod':'Kupac',dim==='product'?'Kupci':'Artikala','Ulaz','Izlaz','Stanje','Zadnji izlaz'],...cur.map(x=>[x.k,x.set.size,x.qi,x.qo,x.st,x.last])];
+ $('#ex').onclick=()=>{const l=isP?[['Proizvod','Kupac','Serije','Ulaz','Izlaz','Stanje','Zadnji izlaz'],...cur.map(x=>[x.k,x.cu,x.items.filter(s=>mz||s.stanje!==0).length,x.qi,x.qo,x.st,x.last])]
+  :[['Kupac','Artikala','Ulaz','Izlaz','Stanje','Zadnji izlaz'],...cur.map(x=>[x.k,x.set.size,x.qi,x.qo,x.st,x.last])];
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+l.map(r=>r.map(y=>`"${String(y??'').replace(/"/g,'""')}"`).join(';')).join('\n')],{type:'text/csv'}));a.download='stanje-'+(store?.name||'magacin').replace(/[\\/:*?"<>|]+/g,'').trim()+'.csv';a.click()};
  draw()}
 function vStanje(){const v=$('#v');v.innerHTML=`<input id="q" placeholder="🔍 Traži kupca, šifru ili seriju"><div id="l" style="margin-top:12px"></div>`;
