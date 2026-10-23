@@ -42,6 +42,37 @@ details.card summary{list-style:none;cursor:pointer}details.card summary::-webki
 .ac{position:relative}.ac .opts{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:30;background:var(--card);border:1px solid var(--br);border-radius:12px;box-shadow:0 8px 24px #0003;max-height:250px;overflow:auto;display:none}
 .ac .opts.on{display:block}.ac .opt{padding:11px 12px;cursor:pointer;border-bottom:1px solid var(--br);font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ac .opt:last-child{border-bottom:0}.ac .opt:hover,.ac .opt.sel{background:var(--bg);color:var(--pr)}.ac .opt b{font-weight:800;color:var(--pr)}
+/* ===== RESPONZIVNO ===== */
+html{-webkit-text-size-adjust:100%}
+input,select,textarea{min-width:0}
+header{gap:10px}header>div{min-width:0}
+header b,header small{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header button{flex:none;white-space:nowrap}
+.card b,summary b{overflow-wrap:anywhere}.row>div:first-child{min-width:0}
+.seg button{min-width:0;overflow-wrap:anywhere}
+.wrap,.chips,.cust{-webkit-overflow-scrolling:touch}
+.ov{padding:14px}.ov .card{width:min(420px,100%)!important;max-height:90vh;max-height:90dvh;overflow:auto}
+.ac .opts{max-height:min(250px,45vh)}
+@media(max-width:600px){
+ .grid3{grid-template-columns:1fr}
+ .grid3>div:last-child:nth-child(3){grid-column:auto}
+ main{padding:12px 11px 94px}
+ .card{padding:13px;border-radius:14px}
+ header{padding:10px 12px}
+ header b{font-size:16px}header small{font-size:11px}
+ .huge{font-size:38px}.huge small{font-size:16px}
+ .big{font-size:23px}
+ .btn{padding:13px;font-size:15px}
+ td,th{padding:9px 5px;font-size:13px}th{font-size:11px}
+ nav button{font-size:11px;padding:8px 3px}nav button span{font-size:21px;margin-right:4px}
+}
+@media(max-width:380px){
+ main{padding-left:8px;padding-right:8px}
+ .card{padding:11px;border-radius:13px}
+ .huge{font-size:33px}
+ .chips{gap:6px}.chip{padding:7px 11px;font-size:14px}
+ nav button span{display:block;margin-right:0}
+}
 </style></head><body><div id="toast"></div><div id="root"></div>
 <script>
 const SUPABASE_URL='https://jdwoukromsnjhbzuuwmg.supabase.co', SUPABASE_KEY='sb_publishable_t06ANgBontBuGUtC_DXQCQ_jgx2XZmx';
@@ -92,7 +123,7 @@ async function ens(tb,val,list,ex={}){let f=list.find(x=>x.name.toLowerCase()===
 async function init(){const{data:{session}}=await sb.auth.getSession();session?boot():authView()}
 function authView(){
  root.innerHTML=`<div class="auth"><h1>📦 Praćenje magacina</h1><div class="card"><form id="f">
- <label>Korisničko ime</label><input id="em" required autocomplete="username" autocapitalize="none" autocorrect="off" placeholder="korisničko ime ili e-mail"><label>Lozinka</label><input id="pw" type="password" required autocomplete="current-password">
+ <label>Korisničko ime</label><input id="em" autocomplete="username" autocapitalize="none" autocorrect="off" placeholder="korisničko ime ili e-mail"><label>Lozinka</label><input id="pw" type="password" autocomplete="current-password">
  <button class="btn">Prijava</button></form></div></div>`;
  $('#f').onsubmit=async e=>{e.preventDefault();const u=$('#em').value.trim().toLowerCase(),email=u.includes('@')?u:u+'@pobjeda.com',password=$('#pw').value;
   const{error}=await sb.auth.signInWithPassword({email,password});if(error)return toast('Pogrešno korisničko ime ili lozinka');boot()}}
@@ -149,12 +180,12 @@ function vUnos(){const v=$('#v'),mag=plants.find(p=>p.id===storeId())||myStore,m
  <label>Magacin</label><input value="${esc(mag.name)}" readonly>
  ${inMok&&!prodPlantOk?`<div class="hint"><span class="out">⚠️ Baza još nema odvojene nazive – pokreni <b>migracija_mok_nazivi.sql</b> u Supabase.</span></div>`:''}
  <div id="dw"></div>
- <label>Kupac${inMok?' (nije obavezno)':''}</label><div class="ac"><input id="cu" placeholder="odaberi ili upiši novog" autocomplete="off" autocapitalize="none"></div>
+ <label>Kupac</label><div class="ac"><input id="cu" placeholder="odaberi ili upiši novog" autocomplete="off" autocapitalize="none"></div>
  <label>${inMok?'Naziv proizvoda':'Šifra artikla'}</label><div class="ac"><input id="co" placeholder="${inMok?'npr. čahura 9 mm':'npr. LP-1'}" autocomplete="off" autocapitalize="${inMok?'sentences':'characters'}"></div>
  ${inMok?fiBtn('co','klikni da dodaš FI oznaku u naziv'):''}
  <label>Serija</label><div class="ac"><input id="se" placeholder="broj serije" autocomplete="off"></div>
  <label id="ql">${inMok&&type==='in'?'Proizvedeno (kom)':'Količina (kom)'}</label><input id="qt" type="number" inputmode="numeric" min="1">
- <label>Nalog / napomena (nije obavezno)</label><input id="nt"><div class="hint" id="h" style="display:none"></div><button class="btn" id="sv">Spremi</button></div><div id="pk"></div>`;
+ <label>Nalog / napomena</label><input id="nt"><div class="hint" id="h" style="display:none"></div><button class="btn" id="sv">Spremi</button></div><div id="pk"></div>`;
  const low=i=>$('#'+i).value.trim().toLowerCase(),
   rowsFor=()=>{const c=low('cu'),p=low('co');return p?stock.filter(x=>x.plant_id===mid()&&x.product.toLowerCase()===p&&(inMok||x.customer.toLowerCase()===c)&&(type!=='out'||x.status!=='cekanje')):[]},
   pendingFor=()=>{const c=low('cu'),p=low('co');return p?stock.filter(x=>x.plant_id===mid()&&x.status==='cekanje'&&x.stanje>0&&x.product.toLowerCase()===p&&(inMok||x.customer.toLowerCase()===c)):[]},
