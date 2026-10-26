@@ -10,7 +10,7 @@ do $$ declare r record; begin
   for r in select p.oid::regprocedure as sig from pg_proc p
     where p.pronamespace='public'::regnamespace and p.proname in (
       'handle_new_user','is_upravnik','is_admin','can_main','my_plant','can_plant','transfer_stock','transfer_plants',
-      'izlaz','prekontrolisi','uredi_kontrolu','obrisi_kontrolu','ispravi_unos','obrisi_unos',
+      'izlaz','prekontrolisi','sacuvaj_skart','uredi_kontrolu','obrisi_kontrolu','ispravi_unos','obrisi_unos',
       'admin_dodaj_korisnika','admin_izmjeni_korisnika','admin_obrisi_korisnika')
   loop execute 'drop function if exists '||r.sig||' cascade'; end loop;
 end $$;

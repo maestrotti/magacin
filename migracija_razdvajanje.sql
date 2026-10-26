@@ -1,6 +1,7 @@
 -- MOK: potpuno odvojeni kupci + historija kontrola i škarta
 -- Pokreni kao rola "postgres" u Supabase -> SQL Editor, POSLIJE:
 --   schema.sql -> admin.sql -> mok.sql -> migracija_mok.sql -> migracija_mok_nazivi.sql
+-- Zatim pokreni migracija_skart_nacrt.sql (nacrt škarta prije potvrde kontrole).
 -- Sigurno je pokrenuti više puta (idempotentno). Ne briše postojeće transakcije.
 
 -- ===== 0) Pomoćne funkcije i kolone (da skripta radi i na starijoj bazi) =====

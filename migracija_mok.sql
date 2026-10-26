@@ -1,8 +1,8 @@
 -- MOK: proizvodnja čahura (na čekanju / prekontrolisano), škart i izlaz na Laboraciju
 -- Pokreni kao rola "postgres" u Supabase -> SQL Editor.
 -- Sigurno je pokrenuti više puta (idempotentno).
--- NAKON OVE SKRIPTE pokreni migracija_mok_nazivi.sql, pa migracija_razdvajanje.sql
--- (razdvajanje kupaca + historija kontrola/škarta).
+-- NAKON OVE SKRIPTE pokreni migracija_mok_nazivi.sql, pa migracija_razdvajanje.sql,
+-- pa migracija_skart_nacrt.sql (škart se može sačuvati prije potvrde kontrole).
 
 -- ===== 1) Status proizvodnje na svakom unosu =====
 -- 'cekanje'  = proizvedeno, čeka kontrolu (ne može na izlaz)
