@@ -82,3 +82,5 @@ Lozinke su u `schema.sql` / `admin.sql` / `mok.sql` (nisu na GitHubu). Promijeni
   To je namjerno: prekontrolisan ulaz je zaključan. Otvori **Historija → Kontrole**, nađi kontrolu (pretraga/sortiranje po datumu), pa je obriši (🗑) ili ispravi škart (✏️). Nakon toga se ulaz može ispravljati.
 - **„Nema dovoljno prekontrolisanog stanja za taj škart“ / „dio je već izašao“**
   Dio kontrolisane količine je već izdat na Laboraciju. Prvo ispravi/obriši izlaz u **Historija → Transakcije**, pa onda mijenjaj škart ili poništi kontrolu. Time se sprječava negativno stanje.
+- **„Ispravka bi dovela do negativnog stanja“ / „Brisanje bi dovelo do negativnog stanja“**
+  Ne možeš smanjiti ulaz ispod količine koja je već izašla, ni povećati izlaz iznad prekontrolisanog stanja. Prvo ispravi ili obriši izlaz u **Historija → Transakcije**, pa onda ulaz.

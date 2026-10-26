@@ -396,7 +396,7 @@ end $$;
 -- ===== 8) Ispravka/brisanje unosa: vođa smije svoj ulaz, ali ne prekontrolisan =====
 create or replace function ispravi_unos(p_id uuid, p_qty int, p_date date)
 returns void language plpgsql security definer set search_path=public as $$
-declare r movements%rowtype;
+declare r movements%rowtype; r2 movements%rowtype; st int; ns int;
 begin
   select * into r from movements where id=p_id;
   if not found then raise exception 'Unos ne postoji'; end if;
@@ -414,6 +414,19 @@ begin
     raise exception 'Staro prebacivanje bez veze s parom – ispravite ručno';
   end if;
 
+  -- Ne dozvoli ispravku koja bi dovela do negativnog stanja (npr. izlaz veći od ulaza).
+  for r2 in select * from movements
+             where id=p_id or (r.transfer_id is not null and transfer_id=r.transfer_id)
+  loop
+    select coalesce(sum(qty_in-qty_out),0) into st from movements m
+      where m.plant_id=r2.plant_id and m.product_id=r2.product_id and m.serija=r2.serija
+        and m.status=r2.status and m.customer_id is not distinct from r2.customer_id;
+    ns := case when r2.qty_in>0 then st-r2.qty_in+p_qty else st+r2.qty_out-p_qty end;
+    if ns<0 then
+      raise exception 'Ispravka bi dovela do negativnog stanja (bilo bi % kom)', ns;
+    end if;
+  end loop;
+
   update movements set
     qty_in=case when qty_in>0 then p_qty else 0 end,
     qty_out=case when qty_out>0 then p_qty else 0 end,
@@ -426,7 +439,7 @@ end $$;
 
 create or replace function obrisi_unos(p_id uuid)
 returns void language plpgsql security definer set search_path=public as $$
-declare r movements%rowtype;
+declare r movements%rowtype; r2 movements%rowtype; st int; ns int;
 begin
   select * into r from movements where id=p_id;
   if not found then raise exception 'Unos ne postoji'; end if;
@@ -442,6 +455,19 @@ begin
   if r.kind<>'promet' and r.transfer_id is null and not is_admin() then
     raise exception 'Staro prebacivanje bez veze s parom – obrišite ručno';
   end if;
+
+  -- Brisanje ne smije ostaviti negativno stanje (npr. ulaz čija je roba već izašla).
+  for r2 in select * from movements
+             where id=p_id or (r.transfer_id is not null and transfer_id=r.transfer_id)
+  loop
+    select coalesce(sum(qty_in-qty_out),0) into st from movements m
+      where m.plant_id=r2.plant_id and m.product_id=r2.product_id and m.serija=r2.serija
+        and m.status=r2.status and m.customer_id is not distinct from r2.customer_id;
+    ns := case when r2.qty_in>0 then st-r2.qty_in else st+r2.qty_out end;
+    if ns<0 then
+      raise exception 'Brisanje bi dovelo do negativnog stanja (bilo bi % kom)', ns;
+    end if;
+  end loop;
 
   delete from movements where id=p_id or (r.transfer_id is not null and transfer_id=r.transfer_id);
 end $$;
