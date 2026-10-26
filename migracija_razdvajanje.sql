@@ -50,7 +50,7 @@ create unique index if not exists customers_u_global on customers(lower(name)) w
 create unique index if not exists customers_u_plant  on customers(plant_id, lower(name)) where plant_id is not null;
 
 do $$
-declare pl record; c record; cid uuid; used_elsewhere boolean;
+declare pl record; c record; cid uuid;
 begin
   for pl in select id, name from plants where not tracks_customer loop
     for c in
@@ -64,22 +64,16 @@ begin
       select id into cid from customers
        where plant_id=pl.id and lower(name)=lower(c.name) limit 1;
 
-      used_elsewhere := exists(select 1 from movements m where m.customer_id=c.id and m.plant_id<>pl.id)
-        or exists(select 1 from stock_customers sc where sc.customer_id=c.id and sc.plant_id<>pl.id);
-
-      if cid is null and not used_elsewhere then
-        update customers set plant_id=pl.id where id=c.id;
-      else
-        if cid is null then
-          insert into customers(name, plant_id) values(c.name, pl.id) returning id into cid;
-        end if;
-        update movements set customer_id=cid where plant_id=pl.id and customer_id=c.id;
-        insert into stock_customers(plant_id, product_id, customer_id)
-          select plant_id, product_id, cid from stock_customers
-           where plant_id=pl.id and customer_id=c.id
-          on conflict do nothing;
-        delete from stock_customers where plant_id=pl.id and customer_id=c.id;
+      -- Uvijek pravi kopiju za MOK; globalni kupac ostaje netaknut za glavni magacin.
+      if cid is null then
+        insert into customers(name, plant_id) values(c.name, pl.id) returning id into cid;
       end if;
+      update movements set customer_id=cid where plant_id=pl.id and customer_id=c.id;
+      insert into stock_customers(plant_id, product_id, customer_id)
+        select plant_id, product_id, cid from stock_customers
+         where plant_id=pl.id and customer_id=c.id
+        on conflict do nothing;
+      delete from stock_customers where plant_id=pl.id and customer_id=c.id;
     end loop;
   end loop;
 end $$;
@@ -90,7 +84,7 @@ create unique index if not exists products_u_global on products(lower(name)) whe
 create unique index if not exists products_u_plant  on products(plant_id, lower(name)) where plant_id is not null;
 
 do $$
-declare pl record; p record; pid uuid; used_elsewhere boolean;
+declare pl record; p record; pid uuid;
 begin
   for pl in select id, name from plants where not tracks_customer loop
     for p in
@@ -104,22 +98,16 @@ begin
       select id into pid from products
        where plant_id=pl.id and lower(name)=lower(p.name) limit 1;
 
-      used_elsewhere := exists(select 1 from movements m where m.product_id=p.id and m.plant_id<>pl.id)
-        or exists(select 1 from stock_customers sc where sc.product_id=p.id and sc.plant_id<>pl.id);
-
-      if pid is null and not used_elsewhere then
-        update products set plant_id=pl.id where id=p.id;
-      else
-        if pid is null then
-          insert into products(name, plant_id) values(p.name, pl.id) returning id into pid;
-        end if;
-        update movements set product_id=pid where plant_id=pl.id and product_id=p.id;
-        insert into stock_customers(plant_id, product_id, customer_id)
-          select plant_id, pid, customer_id from stock_customers
-           where plant_id=pl.id and product_id=p.id
-          on conflict do nothing;
-        delete from stock_customers where plant_id=pl.id and product_id=p.id;
+      -- Uvijek pravi kopiju za MOK; globalni proizvod ostaje netaknut za glavni magacin.
+      if pid is null then
+        insert into products(name, plant_id) values(p.name, pl.id) returning id into pid;
       end if;
+      update movements set product_id=pid where plant_id=pl.id and product_id=p.id;
+      insert into stock_customers(plant_id, product_id, customer_id)
+        select plant_id, pid, customer_id from stock_customers
+         where plant_id=pl.id and product_id=p.id
+        on conflict do nothing;
+      delete from stock_customers where plant_id=pl.id and product_id=p.id;
     end loop;
   end loop;
 end $$;
