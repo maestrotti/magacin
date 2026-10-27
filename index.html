@@ -524,22 +524,22 @@ async function delTag(pid,cid){const{error}=await sb.from('stock_customers').del
 // Upravnik vidi samo stanje MOK-a: PP (proizvedeno) i GP (prekontrolisano).
 // Detalji (škart, kontrole, potvrde) ostaju na MOK nalogu.
 function vMokStanjeMgr(){const v=$('#v'),mid=storeId(),sum=mokSummary(mid),
- pp=sum.reduce((a,x)=>a+x.produced,0),gp=sum.reduce((a,x)=>a+x.controlled,0);
+ pp=sum.reduce((a,x)=>a+x.produced,0),gp=sum.reduce((a,x)=>a+x.available,0);
  v.innerHTML=`${stores().length>1?`<div class="card"><div class="seg" style="flex-wrap:wrap">${stores().map(s=>`<button data-st2="${s.id}" class="${s.id===mid?'on':''}">${esc(s.name)}</button>`).join('')}</div></div>`:''}
  <div class="card hero"><div class="mu">${esc((plantName(mid)||'POGON MOK').toUpperCase())} · STANJE</div>
  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px">
   <div><div class="mu">PP · proizvedeno</div><div style="font-size:34px;font-weight:800;line-height:1.1">${fmt(pp)} <small style="font-size:15px;opacity:.8">kom</small></div></div>
-  <div style="text-align:right"><div class="mu">GP · prekontrolisano</div><div style="font-size:34px;font-weight:800;line-height:1.1">${fmt(gp)} <small style="font-size:15px;opacity:.8">kom</small></div></div>
- </div><div class="mu" style="margin-top:10px">PP = proizvedeno · GP = prekontrolisano</div></div>
+  <div style="text-align:right"><div class="mu">GP · prekontrolisano na stanju</div><div style="font-size:34px;font-weight:800;line-height:1.1">${fmt(gp)} <small style="font-size:15px;opacity:.8">kom</small></div></div>
+ </div><div class="mu" style="margin-top:10px">PP = proizvedeno · GP = prekontrolisano, još u MOK-u</div></div>
  <div class="card"><label>Traži</label><input id="mokq" value="${esc(mokq)}" placeholder="proizvod ili serija…"></div>
  <div id="l"></div>`;
  const draw=()=>{const q=mokq.trim().toLowerCase();
   const rows=sum.filter(x=>x.produced>0&&(!q||String(x.product).toLowerCase().includes(q)||String(x.serija||'').toLowerCase().includes(q)));
   const g={};rows.forEach(x=>{(g[x.product_id]||(g[x.product_id]={name:x.product,items:[]})).items.push(x)});
   const ps=Object.values(g).sort((a,b)=>String(a.name).localeCompare(String(b.name),'bs'));
-  $('#l').innerHTML=ps.map(p=>{const tp=p.items.reduce((a,x)=>a+x.produced,0),tg=p.items.reduce((a,x)=>a+x.controlled,0);
+  $('#l').innerHTML=ps.map(p=>{const tp=p.items.reduce((a,x)=>a+x.produced,0),tg=p.items.reduce((a,x)=>a+x.available,0);
    return `<div class="card"><div class="row"><b>${esc(p.name)}</b><span class="mu">PP ${fmt(tp)} · <span class="in">GP ${fmt(tg)}</span></span></div>
-   <div class="wrap"><table><tr><th>Serija</th><th class="n">PP</th><th class="n">GP</th></tr>${p.items.slice().sort((a,b)=>String(a.serija||'').localeCompare(String(b.serija||''),'bs')).map(x=>`<tr><td>${x.serija?esc(x.serija):'—'}</td><td class="n">${fmt(x.produced)}</td><td class="n in"><b>${fmt(x.controlled)}</b></td></tr>`).join('')}</table></div></div>`}).join('')||'<p class="mu">Nema proizvodnje u MOK-u.</p>'};
+   <div class="wrap"><table><tr><th>Serija</th><th class="n">PP</th><th class="n">GP</th></tr>${p.items.slice().sort((a,b)=>String(a.serija||'').localeCompare(String(b.serija||''),'bs')).map(x=>`<tr><td>${x.serija?esc(x.serija):'—'}</td><td class="n">${fmt(x.produced)}</td><td class="n in"><b>${fmt(x.available)}</b></td></tr>`).join('')}</table></div></div>`}).join('')||'<p class="mu">Nema proizvodnje u MOK-u.</p>'};
  $('#mokq').oninput=e=>{mokq=e.target.value;draw()};
  v.querySelectorAll('[data-st2]').forEach(b=>b.onclick=()=>{mgStore=b.dataset.st2;mokq='';vMagacin()});
  draw()}
