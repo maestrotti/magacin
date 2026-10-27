@@ -2,6 +2,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f766e"><title>Praćenje magacina</title>
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="apple-touch-icon" href="logo.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <style>
 :root{--bg:#f4f7f6;--card:#fff;--tx:#10231f;--mu:#62736f;--br:#dce5e2;--pr:#0f766e;--pr2:#0b5a54;--in:#15803d;--out:#c2410c;color-scheme:light dark}
@@ -73,10 +75,21 @@ header button{flex:none;white-space:nowrap}
  .chips{gap:6px}.chip{padding:7px 11px;font-size:14px}
  nav button span{display:block;margin-right:0}
 }
+/* logo, oko za lozinku, bez strelica na number poljima */
+.alogo{display:block;margin:0 auto 12px;max-width:150px;max-height:150px;width:auto;height:auto}
+.hlogo{height:34px;width:auto;max-width:56px;object-fit:contain;background:#fff;border-radius:8px;padding:2px;vertical-align:middle;margin-right:8px}
+.pwrap{position:relative}.pwrap input{padding-right:48px}
+.eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--mu);padding:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:10px}
+.eye:hover{color:var(--tx)}
+input[type=number]{-moz-appearance:textfield;appearance:textfield}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 </style></head><body><div id="toast"></div><div id="root"></div>
 <script>
 const SUPABASE_URL='https://jdwoukromsnjhbzuuwmg.supabase.co', SUPABASE_KEY='sb_publishable_t06ANgBontBuGUtC_DXQCQ_jgx2XZmx';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+// number polja: vrijednost mijenja samo tastatura (ne točkić miša ni strelice gore/dolje)
+document.addEventListener('wheel',e=>{const a=document.activeElement;if(a&&a.type==='number')a.blur()},{passive:true});
+document.addEventListener('keydown',e=>{if((e.key==='ArrowUp'||e.key==='ArrowDown')&&e.target&&e.target.type==='number')e.preventDefault()});
 const $=s=>document.querySelector(s),root=$('#root');
 const fmt=n=>Number(n||0).toLocaleString('bs-BA'),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),fd=d=>d.split('-').reverse().join('.');
 const dan=d=>{try{return new Date(String(d)+'T12:00:00').toLocaleDateString('bs-BA',{weekday:'short'})}catch{return ''}};
@@ -187,10 +200,12 @@ async function ens(tb,val,list,ex={}){let f=list.find(x=>x.name.toLowerCase()===
  return data}
 async function init(){const{data:{session}}=await sb.auth.getSession();session?boot():authView()}
 function authView(){
- root.innerHTML=`<div class="auth"><h1>📦 Praćenje magacina</h1><div class="card"><form id="f">
- <label>Korisničko ime</label><input id="em" autocomplete="username" autocapitalize="none" autocorrect="off" placeholder="korisničko ime ili e-mail"><label>Lozinka</label><input id="pw" type="password" autocomplete="current-password">
+ root.innerHTML=`<div class="auth"><img class="alogo" src="logo.png" alt="" onerror="this.style.display='none'"><h1>Praćenje magacina</h1><div class="card"><form id="f">
+ <label>Korisničko ime</label><input id="em" autocomplete="username" autocapitalize="none" autocorrect="off" placeholder="korisničko ime ili e-mail"><label>Lozinka</label><div class="pwrap"><input id="pw" type="password" autocomplete="current-password"><button type="button" id="eye" class="eye" aria-label="Prikaži lozinku" title="Prikaži lozinku"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
  <button class="btn">Prijava</button></form></div></div>`;
- $('#f').onsubmit=async e=>{e.preventDefault();const u=$('#em').value.trim().toLowerCase(),email=u.includes('@')?u:u+'@pobjeda.com',password=$('#pw').value;
+ const EYE_ON='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>',EYE_OFF='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20C5 20 1 12 1 12a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+  $('#eye').onclick=()=>{const i=$('#pw'),b=$('#eye'),show=i.type==='password';i.type=show?'text':'password';b.innerHTML=show?EYE_OFF:EYE_ON;b.title=show?'Sakrij lozinku':'Prikaži lozinku';b.setAttribute('aria-label',b.title);i.focus()};
+  $('#f').onsubmit=async e=>{e.preventDefault();const u=$('#em').value.trim().toLowerCase(),email=u.includes('@')?u:u+'@pobjeda.com',password=$('#pw').value;
   const{error}=await sb.auth.signInWithPassword({email,password});if(error)return toast('Pogrešno korisničko ime ili lozinka');boot()}}
 async function boot(){try{
  const{data:{user}}=await sb.auth.getUser();
@@ -217,7 +232,7 @@ async function loadAll(){const tg=all(()=>sb.from('stock_customers').select('*')
  // interna kretanja dnevne kontrole ne prikazujemo u historiji transakcija
  mov=mov.filter(m=>m.kind!=='kontrola_in'&&m.kind!=='kontrola_out')}
 const tabs=()=>adm()?[['magacin','📦','Magacin'],['evid','🗓','Historija'],['unos','⬇','Unos'],['admin','⚙️','Admin']]:up()?[['magacin','📦','Magacin'],['evid','🗓','Historija']]:[['unos','📦','Magacin'],['stanje','📊','Stanje'],['evid','🗓','Historija']];
-function shell(){root.innerHTML=`<header><div><b>📦 Magacin</b><small>${esc(me.full_name||me.email)} · ${adm()?'Admin':up()?'Upravnik':esc(myStore?.name||'Magacin')}</small></div><button id="lo">Odjava</button></header>
+function shell(){root.innerHTML=`<header><div><b><img class="hlogo" src="logo.png" alt="" onerror="this.style.display='none'">Magacin</b><small>${esc(me.full_name||me.email)} · ${adm()?'Admin':up()?'Upravnik':esc(myStore?.name||'Magacin')}</small></div><button id="lo">Odjava</button></header>
  <main id="v"></main><nav>${tabs().map(t=>`<button data-t="${t[0]}" class="${t[0]===tab?'on':''}"><span>${t[1]}</span>${t[2]}</button>`).join('')}</nav>`;
  $('#lo').onclick=async()=>{await sb.auth.signOut();me=null;authView()};
  document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;shell()});view()}
@@ -489,7 +504,7 @@ function vAdmin(){const v=$('#v'),seg=[['kor','👤 Korisnici'],['art','📦 Art
 $('#no').onclick=()=>dlg('Novi objekat (magacin)','Kreira ulazni magacin i njegov izlazni magacin. Odaberi način rada.',`<label>Naziv ulaznog magacina</label><input id="no1" autocomplete="off"><label>Način rada</label><select id="no2"><option value="magacin">Magacin (po kupcu)</option><option value="mok">MOK (proizvodnja + kontrola)</option></select><label>Naziv izlaznog magacina</label><input id="no3" autocomplete="off">`,async()=>{const n=$('#no1').value.trim(),m=$('#no2').value,o=$('#no3').value.trim();if(!n)throw Error('Upiši naziv ulaznog magacina');if(!o)throw Error('Upiši naziv izlaznog magacina');const{error}=await sb.rpc('admin_napravi_objekat',{p_name:n,p_mode:m,p_out:o});if(error)throw error;await reloadBase();await loadAll()},'Dodaj','✅ Objekat kreiran');
   v.querySelectorAll('[data-pre]').forEach(x=>x.onclick=()=>{const p=plants.find(y=>y.id===x.dataset.pre);if(!p)return;
    dlg('Izmjena pogona',esc(p.name),`<label>Naziv pogona</label><input id="nn" value="${esc(p.name)}" autocomplete="off">`,async()=>{const n=$('#nn').value.trim();if(!n)throw Error('Upiši naziv pogona');const{error}=await sb.from('plants').update({name:n}).eq('id',p.id);if(error)throw error;await reloadBase()},'Spremi','✅ Sačuvano')});
-  v.querySelectorAll('[data-prx]').forEach(x=>x.onclick=()=>{const p=plants.find(y=>y.id===x.dataset.prx);if(!p)return;if(p.is_store||p.is_main)return toast('Magacin se ne može obrisati');
+  v.querySelectorAll('[data-prx]').forEach(x=>x.onclick=()=>{const p=plants.find(y=>y.id===x.dataset.prx);if(!p)return;if(p.is_main||(p.is_store&&x.dataset.obj!=='1'))return toast('Magacin se ne može obrisati');
     if(x.dataset.obj==='1'){
      if(!confirm('Obrisati cijeli objekat "'+p.name+'"?\n\nBrišu se ulazni i izlazni magacin, svi kupci, proizvodi, transakcije, kontrole i škart za taj objekat. Glavni magacin se ne dira. Radnja je nepovratna.'))return;
      sb.rpc('admin_obrisi_objekat',{p_plant:p.id}).then(async({error})=>{if(error)return toast(errMsg(error));await reloadBase();await loadAll();toast('✅ Objekat obrisan');vAdmin()});return}
