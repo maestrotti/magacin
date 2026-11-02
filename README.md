@@ -13,6 +13,7 @@
 4g. Pokreni `migracija_razdvajanje.sql` → Run. **Obavezno poslije svih prethodnih skripti.** Dodaje **odvojene kupce za Pogon MOK** (kolona `customers.plant_id`), tabelu **`kontrole`** i kolonu `movements.kontrola_id`. Za kupce/proizvode koje MOK već koristi pravi **MOK-ove kopije**, a globalni kupci/proizvodi **ostaju netaknuti za glavni magacin**. Stare prekontrolisane unose i škart ubacuje u historiju kontrola/škarta. **Ne briše transakcije i ne mijenja podatke glavnog magacina.** Skripta je idempotentna; može se pokrenuti više puta.
 4h. Pokreni `migracija_skart_nacrt.sql` → Run. Omogućava da se **škart sačuva prije potvrde kontrole** (status `nacrt`), da se stanje odmah smanji, a kontrola potvrdi kasnije. Isti škart možeš mijenjati/dodavati više puta dok je nacrt. Skripta takođe ispravlja provjeru negativnog stanja kod MOK-a (kupac je samo oznaka, ne dijeli stanje). **Ne briše transakcije.** Idempotentna je.
 4i. Pokreni `migracija_mok_dnevna_kontrola.sql` → Run. **Obavezno poslije `migracija_skart_nacrt.sql`.** Uvodi **dnevnu/djelimičnu kontrolu** (više odvojenih unosa po proizvodu i seriji), **odvojene unose škarta** koji se sabiraju (npr. 50 + 40 = 90) i **konačnu potvrdu „sve prekontrolisano“** (tabela `mok_potvrde`). Kontrola i škart se mogu pojedinačno ispravljati i brisati. **Glavni magacin se ne mijenja.** Skripta je idempotentna.
+4j. Pokreni `migracija_serije.sql` → Run. **Obavezno poslije svih prethodnih skripti.** Dodaje mogućnost **ispravke serije** (i količine/datuma) na postojećim unosima, za vođu, upravnika i admina. Kada se serija promijeni, automatski se mijenja i na svim povezanim unosima (ulaz, izlaz, kontrole i škart) za isti proizvod u tom magacinu. **Ne briše transakcije** i ne mijenja podatke same po sebi. Skripta je idempotentna.
 5. Authentication → Sign In / Providers → Email → isključi **Confirm email**.
 6. Provjera: `select email, role from profiles;` → Senad = upravnik, Belmin = vodja (glavni magacin), Elmir = vodja (Pogon MOK), admin = admin. Provjeri i `select name, is_store from plants;` i `select c.name, pl.name as magacin from customers c left join plants pl on pl.id=c.plant_id order by 1;` (Kupci MOK-a moraju imati `Pogon MOK`, a glavni `null`/glavni magacin).
 
@@ -44,10 +45,12 @@ Upravnik (o.senad) ima dva taba:
 
 **Admin** (korisničko ime `admin`; lozinka je u `admin.sql`, koji nije na GitHubu) ima sve što i upravnik, plus:
 - **⬇ Unos** – može sam upisati ulaz/izlaz i birati magacin (**Glavni magacin** ili **Pogon MOK**).
-- **⚙️ Admin** – upravljanje bazom: **Korisnici** (dodaj/izmijeni/obriši, promjena lozinke i role), **Artikli**, **Kupci** i **Pogoni** (dodaj/izmijeni/obriši). Kod novog artikla/kupca bira se **magacin** (Glavni ili Pogon MOK), pa se nazivi ne miješaju. Ako se zapis koristi u transakcijama, admin može potvrditi brisanje **i svih njegovih transakcija/kontrola** (time se mijenja stanje magacina). Pojedinačne transakcije briše u **Historiji** (🗑), a ispravlja količinu/datum sa ✏️.
-- **Historija** – kod svakog unosa ima ✏️ (ispravka količine/datuma) i 🗑 (brisanje), pa tako mijenja i stanje magacina. U Pogonu MOK proizvodnja ostaje **na čekanju** dok se ne prekontroliše; pojedinačne kontrole i škart ispravlja u **Historija → Kontrole / Škart** ili kroz prozor **Kontrola / škart**.
+- **⚙️ Admin** – upravljanje bazom: **Korisnici** (dodaj/izmijeni/obriši, promjena lozinke i role), **Artikli**, **Kupci** i **Pogoni** (dodaj/izmijeni/obriši). Kod novog artikla/kupca bira se **magacin** (Glavni ili Pogon MOK), pa se nazivi ne miješaju. U tabovima **Artikli** i **Kupci** magacini su **odvojeni**: na vrhu je izbor **Glavni magacin / Pogon MOK / Svi**, pa se pregled radi po jednom magacinu (glavni i MOK se ne miješaju). Ako se zapis koristi u transakcijama, admin može potvrditi brisanje **i svih njegovih transakcija/kontrola** (time se mijenja stanje magacina). Pojedinačne transakcije briše u **Historiji** (🗑), a ispravlja količinu/datum/seriju sa ✏️.
+- **Historija** – kod svakog unosa ima ✏️ (ispravka količine, datuma **i serije**) i 🗑 (brisanje), pa tako mijenja i stanje magacina. U Pogonu MOK proizvodnja ostaje **na čekanju** dok se ne prekontroliše; pojedinačne kontrole i škart ispravlja u **Historija → Kontrole / Škart** ili kroz prozor **Kontrola / škart**.
 
 Polja **Kupac**, **Naziv/šifra artikla** i **Serija** imaju pametni padajući meni: dok kucaš, lista se filtrira i prvo prikazuje stavke koje **počinju** upisanim tekstom (npr. `LP-1` → LP-1, LP-11, LP-100…). Radi i strelicama ↑/↓ + Enter. U Pogonu MOK lista prikazuje **samo MOK-ove nazive i kupce**, a u glavnom magacinu samo glavne — nazivi i kupci se ne miješaju.
+
+**Ispravka serije** – dostupna je i **vođi** i **upravniku/adminu**. U **Historiji → Transakcije** klikni ✏️ na unosu i promijeni polje **Serija** (uz količinu i datum). U pregledu **Stanja** (kartica proizvoda) i u prozoru **Kontrola / škart** postoji dugme **✏️ Serija**. Promjena serije automatski se prenosi na **sve povezane unose iste serije** (ulaz, izlaz, kontrole i škart) za taj proizvod u tom magacinu, pa stanje i historija ostaju usklađeni. Ako je serija već djelimično izašla, i dalje možeš ispraviti njeno ime — količine se ne mijenjaju. Za to je potrebno da jednom pokreneš `migracija_serije.sql` (vidi korak 4j).
 
 ## 3. GitHub
 ```
@@ -56,7 +59,7 @@ git add .
 git commit -m "Nova verzija"
 git push
 ```
-Na GitHub idu `index.html`, `manifest.webmanifest`, `migracija_izlaz.sql`, `migracija_mok.sql`, `migracija_mok_nazivi.sql`, `migracija_razdvajanje.sql`, `migracija_skart_nacrt.sql`, `migracija_mok_dnevna_kontrola.sql`, `reset.sql` i `README.md` (bez lozinki). `schema.sql`, `admin.sql` i `mok.sql` ne guraj u javni repo – sadrže lozinke.
+Na GitHub idu `index.html`, `manifest.webmanifest`, `migracija_izlaz.sql`, `migracija_mok.sql`, `migracija_mok_nazivi.sql`, `migracija_razdvajanje.sql`, `migracija_skart_nacrt.sql`, `migracija_mok_dnevna_kontrola.sql`, `migracija_serije.sql`, `reset.sql` i `README.md` (bez lozinki). `schema.sql`, `admin.sql` i `mok.sql` ne guraj u javni repo – sadrže lozinke.
 
 ## Korisnici
 - **Admin** – sve (korisnici, artikli, kupci, pogoni, stanje): korisničko ime `admin` (lozinka je u `admin.sql`, koji se ne objavljuje na GitHubu)
@@ -89,6 +92,8 @@ Lozinke su u `schema.sql` / `admin.sql` / `mok.sql` (nisu na GitHubu). Promijeni
   Nije pokrenut `migracija_mok_dnevna_kontrola.sql`. Pokreni ga kao `postgres` u Supabase → SQL Editor **poslije** `migracija_skart_nacrt.sql`, pa osvježi aplikaciju (Ctrl+F5). Skripta dodaje `kontrole.tip`, tabelu `mok_potvrde`, dnevnu/djelimičnu kontrolu i odvojene unose škarta; ne briše transakcije i ne mijenja glavni magacin.
 - **Dugme „Potvrdi da je sve prekontrolisano“ se ne pojavljuje**
   Potvrda je dozvoljena samo kada je **Na čekanju 0**, tj. kada je cijela proizvodnja pokrivena škartom i prekontrolisanom količinom. Upiši još kontrolu/škart do nule, pa se dugme pojavljuje na dnu prozora **Kontrola / škart**.
+- **„function ispravi_unos_i_seriju/preimenuj_seriju does not exist“ ili se serija ne može sačuvati**
+  Nije pokrenut `migracija_serije.sql`. Pokreni ga kao `postgres` u Supabase → SQL Editor **poslije svih ostalih migracija**, pa osvježi aplikaciju (Ctrl+F5). Skripta ne briše podatke; samo dodaje funkcije za ispravku serije.
 - **„Kontrola je završena. Prvo je obriši u Historiji → Kontrole“**
   Stariji ulaz je bio vezan za kontrolu. Otvori **Historija → Kontrole**, ispravi ili obriši taj unos (🗑), pa ispravi ulaz. Kod novih unosa proizvodnja ostaje **na čekanju**, a kontrole i škart se ispravljaju pojedinačno u prozoru **Kontrola / škart**.
 - **„Nema dovoljno prekontrolisanog stanja za taj škart“ / „dio je već izašao“**

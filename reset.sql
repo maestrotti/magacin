@@ -2,6 +2,7 @@
 drop view if exists v_stock;
 drop trigger if exists on_auth_user_created on auth.users;
 drop table if exists kontrole cascade;
+drop table if exists mok_potvrde cascade;
 drop table if exists stock_customers cascade;
 drop table if exists routes, movements, user_plants, customers, products, profiles, plants cascade;
 
@@ -11,6 +12,8 @@ do $$ declare r record; begin
     where p.pronamespace='public'::regnamespace and p.proname in (
       'handle_new_user','is_upravnik','is_admin','can_main','my_plant','can_plant','transfer_stock','transfer_plants',
       'izlaz','prekontrolisi','sacuvaj_skart','uredi_kontrolu','obrisi_kontrolu','ispravi_unos','obrisi_unos',
+      'ispravi_unos_i_seriju','preimenuj_seriju','dodaj_kontrolu','ispravi_kontrolu','dodaj_skart','ispravi_skart',
+      'obrisi_skart','potvrdi_kontrolu','mok_totals','mok_plant',
       'admin_dodaj_korisnika','admin_izmjeni_korisnika','admin_obrisi_korisnika')
   loop execute 'drop function if exists '||r.sig||' cascade'; end loop;
 end $$;
