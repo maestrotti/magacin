@@ -7,6 +7,12 @@
 --                                  magacin + proizvod (ulaz, izlaz, kontrole, škart).
 --   * ispravi_unos_i_seriju(...) — ispravlja količinu, datum I seriju jednog unosa.
 -- Stara funkcija ispravi_unos ostaje netaknuta (stariji ekrani nastavljaju raditi).
+--
+-- SIGURNOST PODATAKA: skripta NE briše tabele, kolone ni transakcije. Samo
+-- kreira/zamjenjuje dvije funkcije i daje dozvolu za njihovo pokretanje.
+-- Sve je u jednoj transakciji: ako bilo koji korak pukne, neće ostati pola primijenjeno.
+
+begin;
 
 -- ===== 1) Preimenovanje serije za magacin + proizvod =====
 -- Serija je zajednička oznaka za sve unose istog proizvoda u magacinu, pa se mijenja
@@ -105,6 +111,19 @@ end $$;
 -- ===== 3) Dozvole =====
 grant execute on function preimenuj_seriju(uuid,uuid,text,text) to authenticated;
 grant execute on function ispravi_unos_i_seriju(uuid,int,date,text) to authenticated;
+
+-- ===== 4) Provjera prije potvrde transakcije =====
+-- Ako SQL Editor nije pokrenut kao rola "postgres", funkcije se neće kreirati i
+-- skripta ovdje jasno puca umjesto da tiho prijavi "Success".
+do $$
+begin
+  if to_regprocedure('public.preimenuj_seriju(uuid,uuid,text,text)') is null
+     or to_regprocedure('public.ispravi_unos_i_seriju(uuid,integer,date,text)') is null then
+    raise exception 'Migracija nije uspjela: funkcije za seriju nisu kreirane. Provjeri da SQL Editor radi kao rola postgres.';
+  end if;
+end $$;
+
+commit;
 
 notify pgrst, 'reload schema';
 
