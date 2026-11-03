@@ -202,6 +202,28 @@ const noBase=s=>{const t=noMark(s),m=t.match(/(?:^|[^a-z0-9])no\s*\.?\s*\d+/i);r
 const prodCmp=(a,b)=>{const A=String(a??''),B=String(b??''),na=noNum(A),nb=noNum(B);
  if(na!=null&&nb!=null){const c=noBase(A).localeCompare(noBase(B),'bs',{numeric:true,sensitivity:'base'});if(c)return c;if(na!==nb)return na-nb}
  return A.localeCompare(B,'bs',{numeric:true,sensitivity:'base'})};
+const mokFilters={no:{active:false,value:''},fi:{active:false,value:''}};
+const mokNumericMatch=(name,kind,value)=>{
+ const pattern=kind==='no'?/(?:^|[^a-z0-9])no\s*\.?\s*(\d+(?:[.,]\d+)?)/gi:/(?:[⊘⌀ØøΦφ]|(?:^|[^a-z0-9])fi)\s*(\d+(?:[.,]\d+)?)/gi;
+ const numbers=[...noMark(name).matchAll(pattern)].map(m=>Number(m[1].replace(',','.')));
+ const query=String(value).trim();
+ return query===''?numbers.length>0:/^\d+(?:[.,]\d+)?$/.test(query)&&numbers.includes(Number(query.replace(',','.')));
+};
+function mokMatches(name,customers=''){
+ if(!Object.entries(mokFilters).every(([kind,f])=>!f.active||mokNumericMatch(name,kind,f.value)))return false;
+ let numbersMatch=true;
+ const text=noMark(mokq).replace(/(?:^|\s)no\s*\.?\s*(\d+(?:[.,]\d+)?)/gi,(token,value)=>{if(!mokNumericMatch(name,'no',value))numbersMatch=false;return ' '});
+ return numbersMatch&&kwMatch(name+' '+customers,text);
+}
+function mokFilterFields(){return `<div class="mok-page-search" style="margin-top:12px"><label for="mokq">Traži proizvod ili kupca</label><input id="mokq" value="${esc(mokq)}" placeholder="proizvod, kupac, No2…"></div><div class="row" style="margin-top:10px;flex-wrap:wrap">${[['no','Nº'],['fi','⊘']].map(([kind,label])=>`<div><button type="button" class="chip ${mokFilters[kind].active?'on':''}" data-mok-filter="${kind}" aria-pressed="${mokFilters[kind].active}">${label}</button><input id="mok-filter-${kind}" aria-label="${kind==='no'?'Broj proizvoda':'FI vrijednost'}" inputmode="decimal" placeholder="${kind==='no'?'Tačan broj, npr. 2':'Tačan FI, npr. 9,5'}" value="${esc(mokFilters[kind].value)}" ${mokFilters[kind].active?'':'hidden'} style="margin-top:6px"></div>`).join('')}</div>`}
+function bindMokFilters(draw){
+ $('#mokq').oninput=e=>{mokq=e.target.value;draw()};
+ document.querySelectorAll('[data-mok-filter]').forEach(button=>{
+  const kind=button.dataset.mokFilter,input=$('#mok-filter-'+kind),filter=mokFilters[kind];
+  button.onclick=()=>{filter.active=!filter.active;button.classList.toggle('on',filter.active);button.setAttribute('aria-pressed',String(filter.active));input.hidden=!filter.active;if(filter.active)input.focus();draw()};
+  input.oninput=()=>{filter.value=input.value;draw()};
+ });
+}
 function addMark(el,sym){if(!el)return;const a=el.selectionStart??el.value.length,b=el.selectionEnd??a,pre=el.value.slice(0,a),post=el.value.slice(b),
  sp1=pre&&!/\s$/.test(pre)?' ':'',sp2=post&&!/^\s/.test(post)?' ':'';el.value=pre+sp1+sym+sp2+post;const pos=(pre+sp1+sym).length;
  el.focus();try{el.setSelectionRange(pos,pos)}catch{}el.dispatchEvent(new Event('input',{bubbles:true}))}
@@ -364,7 +386,7 @@ function vUnos(){applyMokScope();const v=$('#v'),mag=plants.find(p=>p.id===store
  ${inMok?fiBtn('co','klikni da dodaš FI oznaku u naziv'):''}
  ${inMok?'':`<label>Serija</label><div class="ac"><input id="se" placeholder="broj serije" autocomplete="off"></div>`}
  <label id="ql">${inMok&&type==='in'?'Proizvedeno (kom)':'Količina (kom)'}</label><input id="qt" type="number" inputmode="numeric" min="1">
- <label>Nalog / napomena</label><input id="nt"><div class="hint" id="h" style="display:none"></div><button class="btn" id="sv">Spremi</button></div><div id="pk"></div>`;
+ <label>Nalog / napomena</label><input id="nt"><div class="hint" id="h" style="display:none"></div><button class="btn" id="sv">Spremi</button></div>${inMok?`<div class="card">${mokFilterFields()}</div>`:''}<div id="pk"></div>`;
  const low=i=>($('#'+i)?.value||'').trim().toLowerCase(),
   rowsFor=()=>{const c=low('cu'),p=low('co');return p?stock.filter(x=>x.plant_id===mid()&&x.product.toLowerCase()===p&&(inMok||x.customer.toLowerCase()===c)&&(type!=='out'||x.status!=='cekanje')):[]},
   pendingFor=()=>{const c=low('cu'),p=low('co');return p?stock.filter(x=>x.plant_id===mid()&&x.status==='cekanje'&&x.stanje>0&&x.product.toLowerCase()===p&&(inMok||x.customer.toLowerCase()===c)):[]},
@@ -382,7 +404,7 @@ function vUnos(){applyMokScope();const v=$('#v'),mag=plants.find(p=>p.id===store
     h.innerHTML=`Trenutno stanje: ${fmt(st)} kom${inMok?` <span class="mu">· na čekanju ${fmt(pc)} kom</span>`:''}`}};
  drawDest();['cu','co'].forEach(i=>{const e=$('#'+i);if(e){e.oninput=upd;e.onchange=()=>{if(i==='co'&&inMok)e.value=fiNorm(e.value);autoSerial();upd()}}});const seEl=$('#se');if(seEl){seEl.oninput=upd;seEl.onchange=upd}upd();
  function drawPending(){const el=$('#pk');if(!el)return;if(!inMok){el.innerHTML='';return}
-  const rows=mokSummary(mid()).filter(x=>x.pending>0)
+  const rows=mokSummary(mid()).filter(x=>x.pending>0&&mokMatches(x.product,tagsOf(mid(),x.product_id).map(c=>c.name).join(' ')))
    .sort((a,b)=>prodCmp(a.product,b.product));
   el.innerHTML=`<div class="card"><div class="row"><b>Na čekanju kontrole</b><span class="mu">${fmt(rows.reduce((a,x)=>a+x.pending,0))} kom</span></div>${rows.length?`<div class="wrap"><table><tr><th>Kupci (oznake)</th><th>Proizvod</th><th class="n">Proizvedeno</th><th class="n">Škart</th><th class="n">Prekontrolisano</th><th class="n">Na čekanju</th><th></th></tr>${rows.map((x,i)=>{const tg=tagsOf(mid(),x.product_id);return `<tr><td>${tg.length?esc(tg.map(c=>c.name).join(' / ')):'<span class="mu">Bez kupca</span>'}</td><td>${esc(x.product)}</td><td class="n in">${fmt(x.produced)}</td><td class="n out">${fmt(x.scrap)}</td><td class="n">${fmt(x.controlled)}</td><td class="n"><b class="out">${fmt(x.pending)}</b></td><td style="white-space:nowrap"><button class="chip" data-mok="${i}" style="padding:6px 10px">Kontrola / škart</button></td></tr>`}).join('')}</table></div>`:'<p class="mu">Nema proizvodnje na čekanju kontrole.</p>'}</div>`;
   el.querySelectorAll('[data-mok]').forEach(b=>b.onclick=e=>{e.preventDefault();const x=rows[+b.dataset.mok];if(x)control(x)})}
@@ -408,6 +430,7 @@ function vUnos(){applyMokScope();const v=$('#v'),mag=plants.find(p=>p.id===store
   if(inMok&&c){const{error:e0}=await sb.from('stock_customers').upsert({plant_id:mid(),product_id:p.id,customer_id:c.id},{onConflict:'plant_id,product_id,customer_id',ignoreDuplicates:true});if(e0)throw e0}
   const{error}=await sb.from('movements').insert({date:$('#dt').value,plant_id:mid(),customer_id:c?.id??null,product_id:p.id,serija:se,qty_in:q,qty_out:0,note:$('#nt').value.trim()||null,status:inMok?'cekanje':'kontrola'});if(error)throw error;
   await loadAll();toast(inMok?'✅ Proizvedeno – na čekanju kontrole':'✅ Spremljeno');vUnos()}catch(e){toast(errMsg(e))}}
+ if(inMok)bindMokFilters(drawPending);
  drawPending()}
 function dlg(t,inf,body,go,bt,ok){const o=document.createElement('div');o.className='ov';o.innerHTML=`<div class="card" style="width:min(420px,92vw)"><b>${t}</b><div class="mu">${inf}</div>${body}<button class="btn" id="tg">${bt||'Prebaci'}</button><button class="link" id="tx">Odustani</button></div>`;document.body.appendChild(o);
  o.querySelectorAll('[data-fi]').forEach(b=>b.onclick=e=>{e.preventDefault();addFi(o.querySelector('#'+b.dataset.fi))});
@@ -651,16 +674,16 @@ function vMokStanjeMgr(){applyMokScope();const v=$('#v'),mid=storeId(),sum=mokSu
   <div><div class="mu">PP · proizvedeno</div><div style="font-size:34px;font-weight:800;line-height:1.1">${fmt(pp)} <small style="font-size:15px;opacity:.8">kom</small></div></div>
   <div style="text-align:right"><div class="mu">GP · prekontrolisano na stanju</div><div style="font-size:34px;font-weight:800;line-height:1.1">${fmt(gp)} <small style="font-size:15px;opacity:.8">kom</small></div></div>
  </div><div class="mu" style="margin-top:10px">PP = proizvedeno · GP = prekontrolisano, još u MOK-u</div></div>
- <div class="card mok-page-search"><label>Traži</label><input id="mokq" value="${esc(mokq)}" placeholder="proizvod…"></div>
+ <div class="card">${mokFilterFields()}</div>
  <div id="l"></div>`;
- const draw=()=>{const q=mokq.trim().toLowerCase();
-  const rows=sum.filter(x=>x.produced>0&&(!q||String(x.product).toLowerCase().includes(q)));
+ const draw=()=>{
+  const rows=sum.filter(x=>x.produced>0&&mokMatches(x.product,tagsOf(mid,x.product_id).map(c=>c.name).join(' ')));
   const g={};rows.forEach(x=>{(g[x.product_id]||(g[x.product_id]={name:x.product,items:[]})).items.push(x)});
   const ps=Object.values(g).sort((a,b)=>prodCmp(a.name,b.name));
   $('#l').innerHTML=ps.map(p=>{const tp=p.items.reduce((a,x)=>a+x.produced,0),tg=p.items.reduce((a,x)=>a+x.available,0);
    return `<div class="card"><div class="row"><b>${esc(p.name)}</b><span class="mu">PP ${fmt(tp)} · <span class="in">GP ${fmt(tg)}</span></span></div>
    <div class="wrap"><table><tr><th class="n">PP</th><th class="n">GP</th></tr>${p.items.slice().sort((a,b)=>String(a.serija||'').localeCompare(String(b.serija||''),'bs')).map(x=>`<tr><td class="n">${fmt(x.produced)}</td><td class="n in"><b>${fmt(x.available)}</b></td></tr>`).join('')}</table></div></div>`}).join('')||'<p class="mu">Nema proizvodnje u MOK-u.</p>'};
- $('#mokq').oninput=e=>{mokq=e.target.value;draw()};
+ bindMokFilters(draw);
  v.querySelectorAll('[data-st2]').forEach(b=>b.onclick=()=>{mgStore=b.dataset.st2;mokq='';shell()});
  draw()}
 function vMokStanje(){applyMokScope();if(up())return vMokStanjeMgr();const v=$('#v'),mid=storeId(),sum=mokSummary(mid),
@@ -669,12 +692,12 @@ function vMokStanje(){applyMokScope();if(up())return vMokStanjeMgr();const v=$('
  v.innerHTML=`${mgr()&&stores().length>1?`<div class="card"><div class="seg" style="flex-wrap:wrap">${stores().map(s=>`<button data-st2="${s.id}" class="${s.id===mid?'on':''}">${esc(s.name)}</button>`).join('')}</div></div>`:''}
   <div class="card hero"><div class="mu">${esc((plantName(mid)||'POGON MOK').toUpperCase())} · STANJE (PREKONTROLISANO)</div><div class="huge">${fmt(avail)} <small>kom</small></div><div class="mu" style="margin-top:4px">proizvedeno ${fmt(total)} · na čekanju ${fmt(pend)} · prekontrolisano ${fmt(ok)} · škart ${fmt(scrap)} · izašlo ${fmt(exited)}</div></div>
  <div class="card"><div class="seg"><button data-md="product" class="${mokDim==='product'?'on':''}">📦 Po proizvodu</button><button data-md="customer" class="${mokDim==='customer'?'on':''}">🏢 Po kupcu</button></div>
- <div class="mok-page-search" style="margin-top:12px"><label>Traži</label><input id="mokq" value="${esc(mokq)}" placeholder="proizvod, kupac…"></div>
+ ${mokFilterFields()}
  <div class="mu" style="margin-top:8px">Svaki proizvod ima svoje unose škarta i kontrole. Ista količina je zajednička za sve kupce – kupac je samo oznaka.</div>
  <div class="row" style="margin-top:10px"><span class="mu">Excel: magacin, proizvod, kupac, količina</span><button class="chip" id="ex">⬇ Excel</button></div></div>
  <div id="l"></div>`;
- const draw=()=>{const q=mokq.trim().toLowerCase();
-  let list=base.filter(x=>!q||String(x.product).toLowerCase().includes(q)||tagsOf(mid,x.product_id).some(c=>c.name.toLowerCase().includes(q)));
+ const draw=()=>{
+  let list=base.filter(x=>mokMatches(x.product,tagsOf(mid,x.product_id).map(c=>c.name).join(' ')));
   list.sort((a,b)=>prodCmp(a.product,b.product)||String(a.serija||'').localeCompare(String(b.serija||''),'bs',{numeric:true}));
   const tagHtml=pid=>{const tg=tagsOf(mid,pid);return `<div style="margin-top:10px"><div class="mu">Kupci (mogući):</div><div class="chips" style="flex-wrap:wrap;overflow:visible;margin:6px 0 0;padding-bottom:0">${tg.length?tg.map(c=>`<span class="chip" style="display:inline-flex;align-items:center;gap:6px">${esc(c.name)}<button class="x" data-tagdel data-pr="${pid}" data-cu="${c.id}" style="color:var(--out);font-weight:800;padding:0 2px">×</button></span>`).join(''):'<span class="mu">Bez kupca</span>'}<button class="chip" data-tagadd="${pid}">+ Dodaj kupca</button></div></div>`};
   const rowBtn=x=>`<button class="chip" data-mi="${list.indexOf(x)}" style="padding:5px 9px;font-size:12px">Kontrola / škart</button>`;
@@ -699,7 +722,7 @@ function vMokStanje(){applyMokScope();if(up())return vMokStanjeMgr();const v=$('
  };
  v.querySelectorAll('[data-md]').forEach(b=>b.onclick=()=>{mokDim=b.dataset.md;v.querySelectorAll('[data-md]').forEach(x=>x.classList.toggle('on',x===b));draw()});
  v.querySelectorAll('[data-st2]').forEach(b=>b.onclick=()=>{mgStore=b.dataset.st2;mokq='';shell()});
- $('#mokq').oninput=e=>{mokq=e.target.value;draw()};
+ bindMokFilters(draw);
  $('#ex').onclick=exportStockExcel;
  draw()}
 function vStanje(){applyMokScope();if(isMok(storeId()))return vMokStanje();const v=$('#v');v.innerHTML=`<input id="q" placeholder="🔍 Traži kupca, šifru ili seriju"><div id="l" style="margin-top:12px"></div>`;
