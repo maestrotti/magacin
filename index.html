@@ -189,9 +189,19 @@ function exportStockExcel(){
 }
 
 let me,myp=[],plants=[],customers=[],products=[],stock=[],sc=[],mov=[],kontrole=[],mokPotvrde=[],profiles=[],uplants=[],tab,type='in',sel={},pre={},mode='login',rg={f:'',t:'',q:''},zero=false,mainOk=true,myStore=null,mgStore='';
-let mg='product',mq='',mz=false,msrt={k:'stanje',d:-1},hf={cu:'',pr:'',pl:'',kd:'',st:''},srt={k:'date',d:-1},ad='kor',adPl='main',mokDim='product',mokq='',prodPlantOk=true,custPlantOk=true,evidMode='tx',ksrt={k:'date',d:-1};
+let mg='product',mq='',mz=false,msrt={k:'name',d:1},hf={cu:'',pr:'',pl:'',kd:'',st:''},srt={k:'date',d:-1},ad='kor',adPl='main',mokDim='product',mokq='',prodPlantOk=true,custPlantOk=true,evidMode='tx',ksrt={k:'date',d:-1};
 const FI='⊘',NO='Nº'; // FI oznaka – krug prekrižen; Nº – oznaka broja
 const fiNorm=v=>String(v||'').replace(/(^|\s)fi(?=\s|$)/gi,'$1'+FI);
+// "No" oznaka se u nazivima javlja kao N⁰, Nº, N°, N0 i No.
+// Sve tretiramo isto: za pretragu kao "no", a za sortiranje vadimo broj iza oznake.
+const noMark=s=>String(s??'').replace(/[⁰º°]/g,'o').replace(/(^|[^a-z0-9])n0\s*(?=\d)/gi,'$1no');
+const searchNorm=s=>noMark(s).replace(/\bno\s*\.?\s*(?=\d)/gi,'no').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+const kwMatch=(text,q)=>{const t=searchNorm(text),qq=searchNorm(q);return !qq||qq.split(' ').every(w=>t.includes(w))};
+const noNum=s=>{const m=noMark(s).match(/(?:^|[^a-z0-9])no\s*\.?\s*(\d+)/i);return m?+m[1]:null};
+const noBase=s=>{const t=noMark(s),m=t.match(/(?:^|[^a-z0-9])no\s*\.?\s*\d+/i);return m?t.slice(0,m.index).trim():t.trim()};
+const prodCmp=(a,b)=>{const A=String(a??''),B=String(b??''),na=noNum(A),nb=noNum(B);
+ if(na!=null&&nb!=null){const c=noBase(A).localeCompare(noBase(B),'bs',{numeric:true,sensitivity:'base'});if(c)return c;if(na!==nb)return na-nb}
+ return A.localeCompare(B,'bs',{numeric:true,sensitivity:'base'})};
 function addMark(el,sym){if(!el)return;const a=el.selectionStart??el.value.length,b=el.selectionEnd??a,pre=el.value.slice(0,a),post=el.value.slice(b),
  sp1=pre&&!/\s$/.test(pre)?' ':'',sp2=post&&!/^\s/.test(post)?' ':'';el.value=pre+sp1+sym+sp2+post;const pos=(pre+sp1+sym).length;
  el.focus();try{el.setSelectionRange(pos,pos)}catch{}el.dispatchEvent(new Event('input',{bubbles:true}))}
@@ -219,8 +229,8 @@ const reloadBase=async()=>{[customers,products,plants]=await Promise.all([all(()
 function ac(el,list,cb){if(!el)return;const box=document.createElement('div');box.className='opts';el.parentNode.appendChild(box);
  let items=[],i=-1,skip=false;
  const close=()=>{box.classList.remove('on');box.innerHTML='';i=-1};
- const paint=()=>{const q=el.value.trim().toLowerCase(),allv=[...new Set(list().filter(x=>x!=null&&String(x)!==''))];
-  items=(q?allv.filter(x=>x.toLowerCase().includes(q)):allv.slice()).sort((a,b)=>((a.toLowerCase().startsWith(q)?0:1)-(b.toLowerCase().startsWith(q)?0:1))||a.localeCompare(b,'bs',{numeric:true})).slice(0,60);
+ const paint=()=>{const qRaw=el.value.trim(),q=qRaw.toLowerCase(),qn=searchNorm(qRaw),allv=[...new Set(list().filter(x=>x!=null&&String(x)!==''))];
+  items=(qn?allv.filter(x=>kwMatch(x,qRaw)):allv.slice()).sort((a,b)=>((searchNorm(a).startsWith(qn)?0:1)-(searchNorm(b).startsWith(qn)?0:1))||prodCmp(a,b)).slice(0,60);
   if(!items.length)return close();
   box.innerHTML=items.map((x,n)=>{const s=x.toLowerCase(),p=q?s.indexOf(q):-1,h=p>=0?esc(x.slice(0,p))+'<b>'+esc(x.slice(p,p+q.length))+'</b>'+esc(x.slice(p+q.length)):esc(x);return `<div class="opt${n===i?' sel':''}" data-v="${esc(x)}">${h}</div>`}).join('');
   box.classList.add('on');
@@ -338,7 +348,7 @@ const prodsFor=pid=>{if(!pid||!prodPlantOk)return products;
 // pogon u koji je roba otišla: iz kolone to_plant, a za starije unose iz napomene
 const destOf=m=>m.to?.name||((m.note||'').match(/(?:Izlaz u pogon|Prebačeno u pogon|Otprema):\s*([^·]+)/)?.[1]||'').trim()||(m.kind==='pogon'&&m.qty_in>0?(m.plants?.name||''):'');
 const sVal=(m,k)=>k==='date'?m.date:k==='in'?m.qty_in:k==='out'?m.qty_out:k==='cu'?(m.customers?.name||''):k==='pr'?(m.products?.name||''):k==='iz'?(m.plants?.name||''):k==='u'?destOf(m):'';
-const sCmp=(a,b,k)=>(k==='in'||k==='out')?((k==='in'?a.qty_in:a.qty_out)-(k==='in'?b.qty_in:b.qty_out)):String(sVal(a,k)||'').localeCompare(String(sVal(b,k)||''),'bs');
+const sCmp=(a,b,k)=>(k==='in'||k==='out')?((k==='in'?a.qty_in:a.qty_out)-(k==='in'?b.qty_in:b.qty_out)):k==='pr'?prodCmp(sVal(a,k),sVal(b,k)):String(sVal(a,k)||'').localeCompare(String(sVal(b,k)||''),'bs',{numeric:true});
 const sortMov=(d,k,dir)=>d.sort((a,b)=>sCmp(a,b,k)*dir||(a.date<b.date?1:a.date>b.date?-1:0));
 function vUnos(){applyMokScope();const v=$('#v'),mag=plants.find(p=>p.id===storeId())||myStore,mid=()=>mag?.id,inMok=isMok(mid()),scoped=scopedStore(mid()),ser=[...new Set(mov.map(m=>m.serija).filter(Boolean))],dest=(mag?.output_plant_id&&plants.some(p=>p.id===mag.output_plant_id)?plants.filter(p=>p.id===mag.output_plant_id):plants.filter(p=>p.id!==mid()&&(p.dest_for===mid()||(!p.is_store&&!p.dest_for)))).sort((a,b)=>String(a.name).localeCompare(String(b.name),'bs'));
  if(!mid()){v.innerHTML='<p class="mu">Nema magacina u bazi.</p>';return}
@@ -373,7 +383,7 @@ function vUnos(){applyMokScope();const v=$('#v'),mag=plants.find(p=>p.id===store
  drawDest();['cu','co'].forEach(i=>{const e=$('#'+i);if(e){e.oninput=upd;e.onchange=()=>{if(i==='co'&&inMok)e.value=fiNorm(e.value);autoSerial();upd()}}});const seEl=$('#se');if(seEl){seEl.oninput=upd;seEl.onchange=upd}upd();
  function drawPending(){const el=$('#pk');if(!el)return;if(!inMok){el.innerHTML='';return}
   const rows=mokSummary(mid()).filter(x=>x.pending>0)
-   .sort((a,b)=>String(a.product).localeCompare(String(b.product),'bs'));
+   .sort((a,b)=>prodCmp(a.product,b.product));
   el.innerHTML=`<div class="card"><div class="row"><b>Na čekanju kontrole</b><span class="mu">${fmt(rows.reduce((a,x)=>a+x.pending,0))} kom</span></div>${rows.length?`<div class="wrap"><table><tr><th>Kupci (oznake)</th><th>Proizvod</th><th class="n">Proizvedeno</th><th class="n">Škart</th><th class="n">Prekontrolisano</th><th class="n">Na čekanju</th><th></th></tr>${rows.map((x,i)=>{const tg=tagsOf(mid(),x.product_id);return `<tr><td>${tg.length?esc(tg.map(c=>c.name).join(' / ')):'<span class="mu">Bez kupca</span>'}</td><td>${esc(x.product)}</td><td class="n in">${fmt(x.produced)}</td><td class="n out">${fmt(x.scrap)}</td><td class="n">${fmt(x.controlled)}</td><td class="n"><b class="out">${fmt(x.pending)}</b></td><td style="white-space:nowrap"><button class="chip" data-mok="${i}" style="padding:6px 10px">Kontrola / škart</button></td></tr>`}).join('')}</table></div>`:'<p class="mu">Nema proizvodnje na čekanju kontrole.</p>'}</div>`;
   el.querySelectorAll('[data-mok]').forEach(b=>b.onclick=e=>{e.preventDefault();const x=rows[+b.dataset.mok];if(x)control(x)})}
  ac($('#cu'),()=>custFor(mid()).map(c=>c.name),()=>{autoSerial();upd()});ac($('#co'),()=>prodsFor(mid()).map(p=>p.name),()=>{autoSerial();upd()});ac($('#se'),()=>ser,upd);
@@ -601,8 +611,8 @@ function vMagacin(){applyMokScope();if(isMok(storeId()))return vMokStanje();cons
    x.qi+=s.qty_in;x.qo+=s.qty_out;x.st+=s.stanje;x.items.push(s);x.set.add(isP?s.customer:s.product);if(s.last_out&&s.last_out>x.last)x.last=s.last_out});
   let list=Object.values(g);
   if(!mz)list=list.filter(x=>x.st!==0);
-  const q=mq.trim().toLowerCase();if(q)list=list.filter(x=>x.k.toLowerCase().includes(q)||[...x.set].join(' ').toLowerCase().includes(q)||x.items.some(s=>(s.serija||'').toLowerCase().includes(q))||(mok&&x.items.some(s=>tagsOf(m,s.product_id).some(c=>c.name.toLowerCase().includes(q)))));
-  const cmp=(a,b)=>{const k=msrt.k;if(k==='name')return (isP?a.k:custLabel(a.k)).localeCompare(isP?b.k:custLabel(b.k),'bs');if(k==='stanje')return a.st-b.st;if(k==='in')return a.qi-b.qi;if(k==='out')return a.qo-b.qo;return String(a.last||'').localeCompare(String(b.last||''))};
+  const q=mq.trim();if(q)list=list.filter(x=>kwMatch([x.k,[...x.set].join(' '),x.items.map(s=>s.serija||'').join(' '),mok?x.items.map(s=>tagsOf(m,s.product_id).map(c=>c.name).join(' ')).join(' '):''].join(' '),q));
+  const cmp=(a,b)=>{const k=msrt.k;if(k==='name')return isP?prodCmp(a.k,b.k):custLabel(a.k).localeCompare(custLabel(b.k),'bs',{numeric:true});if(k==='stanje')return a.st-b.st;if(k==='in')return a.qi-b.qi;if(k==='out')return a.qo-b.qo;return String(a.last||'').localeCompare(String(b.last||''))};
   list.sort((a,b)=>cmp(a,b)*msrt.d);cur=list;
   // Zbir po kupcima za trenutni filter – prikazuje se na vrhu
   if(mok){const ct={};list.forEach(x=>{const tg=tagsOf(m,x.items[0].product_id);(tg.length?tg:[{id:'',name:'Bez kupca'}]).forEach(c=>{const o=ct[c.id]||(ct[c.id]={n:c.name,p:0});o.p++})});
@@ -646,7 +656,7 @@ function vMokStanjeMgr(){applyMokScope();const v=$('#v'),mid=storeId(),sum=mokSu
  const draw=()=>{const q=mokq.trim().toLowerCase();
   const rows=sum.filter(x=>x.produced>0&&(!q||String(x.product).toLowerCase().includes(q)));
   const g={};rows.forEach(x=>{(g[x.product_id]||(g[x.product_id]={name:x.product,items:[]})).items.push(x)});
-  const ps=Object.values(g).sort((a,b)=>String(a.name).localeCompare(String(b.name),'bs'));
+  const ps=Object.values(g).sort((a,b)=>prodCmp(a.name,b.name));
   $('#l').innerHTML=ps.map(p=>{const tp=p.items.reduce((a,x)=>a+x.produced,0),tg=p.items.reduce((a,x)=>a+x.available,0);
    return `<div class="card"><div class="row"><b>${esc(p.name)}</b><span class="mu">PP ${fmt(tp)} · <span class="in">GP ${fmt(tg)}</span></span></div>
    <div class="wrap"><table><tr><th class="n">PP</th><th class="n">GP</th></tr>${p.items.slice().sort((a,b)=>String(a.serija||'').localeCompare(String(b.serija||''),'bs')).map(x=>`<tr><td class="n">${fmt(x.produced)}</td><td class="n in"><b>${fmt(x.available)}</b></td></tr>`).join('')}</table></div></div>`}).join('')||'<p class="mu">Nema proizvodnje u MOK-u.</p>'};
@@ -665,12 +675,12 @@ function vMokStanje(){applyMokScope();if(up())return vMokStanjeMgr();const v=$('
  <div id="l"></div>`;
  const draw=()=>{const q=mokq.trim().toLowerCase();
   let list=base.filter(x=>!q||String(x.product).toLowerCase().includes(q)||tagsOf(mid,x.product_id).some(c=>c.name.toLowerCase().includes(q)));
-  list.sort((a,b)=>String(a.product).localeCompare(String(b.product),'bs')||String(a.serija||'').localeCompare(String(b.serija||''),'bs'));
+  list.sort((a,b)=>prodCmp(a.product,b.product)||String(a.serija||'').localeCompare(String(b.serija||''),'bs',{numeric:true}));
   const tagHtml=pid=>{const tg=tagsOf(mid,pid);return `<div style="margin-top:10px"><div class="mu">Kupci (mogući):</div><div class="chips" style="flex-wrap:wrap;overflow:visible;margin:6px 0 0;padding-bottom:0">${tg.length?tg.map(c=>`<span class="chip" style="display:inline-flex;align-items:center;gap:6px">${esc(c.name)}<button class="x" data-tagdel data-pr="${pid}" data-cu="${c.id}" style="color:var(--out);font-weight:800;padding:0 2px">×</button></span>`).join(''):'<span class="mu">Bez kupca</span>'}<button class="chip" data-tagadd="${pid}">+ Dodaj kupca</button></div></div>`};
   const rowBtn=x=>`<button class="chip" data-mi="${list.indexOf(x)}" style="padding:5px 9px;font-size:12px">Kontrola / škart</button>`;
   if(mokDim==='product'){
    const g={};list.forEach(x=>{const k=String(x.product_id);(g[k]||(g[k]={id:x.product_id,k:x.product,items:[]})).items.push(x)});
-   const ps=Object.values(g).sort((a,b)=>String(a.k).localeCompare(String(b.k),'bs'));
+   const ps=Object.values(g).sort((a,b)=>prodCmp(a.k,b.k));
    $('#l').innerHTML=ps.map(p=>{const tot=p.items.reduce((a,x)=>({produced:a.produced+x.produced,scrap:a.scrap+x.scrap,controlled:a.controlled+x.controlled,pending:a.pending+x.pending,available:a.available+x.available}),{produced:0,scrap:0,controlled:0,pending:0,available:0});
     const allDone=tot.pending===0&&p.items.some(x=>x.controlled>0)&&p.items.every(x=>mokConfirmed(x));
     return `<details class="card" open><summary class="row"><div><b>${esc(p.k)}</b><div class="mu"><span class="in">▼ proizvedeno ${fmt(tot.produced)}</span> · škart ${fmt(tot.scrap)} · <span class="in">prekontrolisano ${fmt(tot.controlled)}</span>${tot.pending?` · <span class="out">na čekanju ${fmt(tot.pending)}</span>`:tot.controlled>0?' · <b class="in">sve prekontrolisano</b>':' · <span class="out">sve škart</span>'}${allDone?' ✅':''}</div></div><div class="big">${fmt(tot.available)}</div></summary>
