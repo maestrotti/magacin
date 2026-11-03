@@ -25,6 +25,18 @@ input:focus,select:focus{outline:2px solid var(--pr);border-color:transparent}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}.seg button{padding:14px;border-radius:12px;border:2px solid var(--br);background:var(--card);color:var(--tx);font:700 16px inherit}
 .seg .in.on{border-color:var(--in);color:var(--in);background:#16a34a14}.seg .out.on{border-color:var(--out);color:var(--out);background:#ea580c14}
 .row{display:flex;justify-content:space-between;align-items:center;gap:10px}.big{font-size:26px;font-weight:800}.mu{color:var(--mu);font-size:13px}
+.history-calendar-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.history-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+.history-calendar-weekday{text-align:center;font-size:12px;color:var(--mu);padding:6px 0}
+.history-calendar-day{min-height:58px;padding:7px 2px;border:1px solid var(--br);border-radius:10px;background:var(--bg);color:var(--tx);font:inherit;cursor:pointer}
+.history-calendar-day.today{outline:2px solid var(--pr);outline-offset:-3px;font-weight:800}
+.history-calendar-day.selected{background:var(--pr);color:#fff;border-color:var(--pr)}
+.history-calendar-day.selected.today{outline-color:var(--card)}
+.history-calendar-day:focus-visible{outline:3px solid var(--tx);outline-offset:1px}
+.history-calendar-indicators{display:flex;justify-content:center;gap:5px;height:8px;margin-top:5px}
+.history-calendar-dot{width:6px;height:6px;border-radius:50%;background:var(--in)}
+.history-calendar-dot.outgoing{background:var(--out)}
+.history-calendar-day.selected .history-calendar-dot{box-shadow:0 0 0 1px #ffffffaa}
 .in{color:var(--in)}.out{color:var(--out)}.hint{margin-top:8px;padding:10px;border-radius:10px;background:var(--bg);font-weight:600}
 .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:8px}.chip{flex:none;padding:8px 14px;border-radius:99px;border:1px solid var(--br);background:var(--card);color:var(--tx);font-weight:600}
 .chip.on{background:var(--pr);color:#fff;border-color:var(--pr)}.chip small{opacity:.7;margin-left:6px}
@@ -195,6 +207,11 @@ function exportStockExcel(){
 
 let me,myp=[],plants=[],customers=[],products=[],stock=[],sc=[],mov=[],kontrole=[],mokPotvrde=[],profiles=[],uplants=[],tab,type='in',sel={},pre={},mode='login',rg={f:'',t:'',q:''},zero=false,mainOk=true,myStore=null,mgStore='';
 let mg='product',mq='',mz=false,msrt={k:'name',d:1},hf={cu:'',pr:'',pl:'',kd:'',st:''},srt={k:'date',d:-1},ad='kor',adPl='main',mokDim='product',mokq='',prodPlantOk=true,custPlantOk=true,evidMode='tx',ksrt={k:'date',d:-1};
+const historyCalendar={month:'',followToday:true,lastToday:''};
+let refreshHistoryCalendar=null;
+const sarajevoDate=(date=new Date())=>{const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Sarajevo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date),part=type=>parts.find(p=>p.type===type).value;return `${part('year')}-${part('month')}-${part('day')}`};
+const calendarMonthDate=month=>new Date(month+'-01T12:00:00Z');
+const shiftCalendarMonth=(month,offset)=>{const date=calendarMonthDate(month);date.setUTCMonth(date.getUTCMonth()+offset);return date.toISOString().slice(0,7)};
 const FI='⊘',NO='Nº'; // FI oznaka – krug prekrižen; Nº – oznaka broja
 const fiNorm=v=>String(v||'').replace(/(^|\s)fi(?=\s|$)/gi,'$1'+FI);
 // "No" oznaka se u nazivima javlja kao N⁰, Nº, N°, N0 i No.
@@ -439,13 +456,29 @@ function vUnos(){applyMokScope();const v=$('#v'),mag=plants.find(p=>p.id===store
 function dlg(t,inf,body,go,bt,ok){const o=document.createElement('div');o.className='ov';o.innerHTML=`<div class="card" style="width:min(420px,92vw)"><b>${t}</b><div class="mu">${inf}</div>${body}<button class="btn" id="tg">${bt||'Prebaci'}</button><button class="link" id="tx">Odustani</button></div>`;document.body.appendChild(o);
  o.querySelectorAll('[data-fi]').forEach(b=>b.onclick=e=>{e.preventDefault();addFi(o.querySelector('#'+b.dataset.fi))});
  o.querySelectorAll('[data-no]').forEach(b=>b.onclick=e=>{e.preventDefault();addNo(o.querySelector('#'+b.dataset.no))});
- $('#tx').onclick=()=>o.remove();$('#tg').onclick=async()=>{try{await go();o.remove();await loadAll();toast(ok||'✅ Prebačeno');view()}catch(e){toast(errMsg(e))}};
+ $('#tx').onclick=()=>o.remove();$('#tg').onclick=async()=>{const button=o.querySelector('#tg');if(button.disabled)return;button.disabled=true;try{await go();o.remove();await loadAll();toast(ok||'✅ Prebačeno');view()}catch(e){toast(errMsg(e))}finally{button.disabled=false}};
  return o}
 const info=s=>`${esc(s.customer)} · ${esc(s.product)}${s.serija?' · '+esc(s.serija):''} · ${esc(s.plant)} · stanje ${fmt(s.stanje)} kom`,qty=s=>`<label>Količina (kom)</label><input id="tq" type="number" min="1" max="${s.stanje}" value="${s.stanje}">`;
-function transfer(s){dlg('Prebaci na drugog kupca',info(s),`<label>Novi kupac</label><div class="ac"><input id="tc" placeholder="odaberi ili upiši" autocomplete="off" autocapitalize="none"></div>`+qty(s),async()=>{
- const n=$('#tc').value.trim();if(!n)throw Error('Upiši kupca');const c=await ens('customers',n,custFor(s.plant_id),scopedStore(s.plant_id)&&custPlantOk?{plant_id:s.plant_id}:{});
- const{error}=await sb.rpc('transfer_stock',{p_plant:s.plant_id,p_product:s.product_id,p_serija:s.serija,p_from:s.customer_id,p_to:c.id,p_qty:+$('#tq').value});if(error)throw error});
- ac($('#tc'),()=>custFor(s.plant_id).filter(c=>c.id!==s.customer_id).map(c=>c.name))}
+function transfer(s){
+ if(!s||s.stanje<=0)return toast('Nema raspoložive količine za prebacivanje');
+ const candidates=custFor(s.plant_id).filter(c=>c.id!==s.customer_id),label=isMok(s.plant_id)?custLabel:mainCustomerLabel;
+ dlg('Promijeni kupca',`${esc(s.product)} · ${esc(label(s.customer))}${s.serija?' · serija '+esc(s.serija):''} · stanje ${fmt(s.stanje)} kom`,
+  `<label for="tc">Prebaci kupcu</label><select id="tc"><option value="">Odaberi kupca</option>${candidates.slice().sort((a,b)=>label(a.name).localeCompare(label(b.name),'bs')).map(c=>`<option value="${esc(c.id)}">${esc(label(c.name))}</option>`).join('')}<option value="new">+ Novi kupac</option></select>
+  <div id="transfer-new" hidden><label for="transfer-name">Naziv novog kupca</label><input id="transfer-name" autocomplete="off"></div>
+  <label for="transfer-mode">Količina za prebacivanje</label><select id="transfer-mode"><option value="all">Cijela količina (${fmt(s.stanje)} kom)</option><option value="part">Dio količine</option></select>
+  <label for="tq">Količina (kom)</label><input id="tq" type="number" min="1" step="1" max="${s.stanje}" value="${s.stanje}" readonly>
+  <div class="mu" style="margin-top:8px">Odabranom kupcu količina se dodaje na postojeće stanje istog proizvoda i serije, a trenutnom kupcu se smanjuje. Ukupno stanje magacina ostaje isto.</div>`,async()=>{
+   const amount=Number($('#tq').value),target=$('#tc').value;
+   if(!Number.isSafeInteger(amount)||amount<=0||amount>s.stanje)throw Error('Unesi cijeli broj od 1 do '+s.stanje);
+   if(!target)throw Error('Odaberi novog kupca');
+   let customer=candidates.find(c=>c.id===target);
+   if(target==='new'){const name=$('#transfer-name').value.trim();if(!name)throw Error('Upiši naziv novog kupca');customer=await ens('customers',name,custFor(s.plant_id),scopedStore(s.plant_id)&&custPlantOk?{plant_id:s.plant_id}:{})}
+   if(!customer||customer.id===s.customer_id)throw Error('Odaberi drugog kupca');
+   const{error}=await sb.rpc('transfer_stock',{p_plant:s.plant_id,p_product:s.product_id,p_serija:s.serija||'',p_from:s.customer_id,p_to:customer.id,p_qty:amount});if(error)throw error;
+  },'Prebaci količinu','✅ Kupac promijenjen, stanje ažurirano');
+ $('#tc').onchange=()=>{$('#transfer-new').hidden=$('#tc').value!=='new';if($('#tc').value==='new')$('#transfer-name').focus()};
+ $('#transfer-mode').onchange=()=>{const all=$('#transfer-mode').value==='all',input=$('#tq');input.readOnly=all;input.value=all?s.stanje:'';if(!all)input.focus()};
+}
 function control(s){if(!s)return;mokDetail(s.plant_id,s.product_id,s.serija||'')}
 // Detalji za jedan proizvod + seriju: proizvedeno, svi unosi škarta i sve kontrole.
 // Dozvoljava novi unos i ispravku svakog pojedinačnog unosa, te konačnu potvrdu.
@@ -650,7 +683,7 @@ function vMagacin(){applyMokScope();if(isMok(storeId()))return vMokStanje();cons
    let cl=Object.values(ct);if(!mz)cl=cl.filter(c=>c.st!==0);cl.sort((a,b)=>b.st-a.st||a.n.localeCompare(b.n,'bs'));
    $('#hc').innerHTML=`<div class="cust"><div class="mu" style="margin:8px 0 2px;letter-spacing:.03em">PO KUPCIMA · STANJE</div>${cl.map(c=>`<div class="crow"><span>${esc(c.n)}</span><b>${fmt(c.st)} <small>kom</small></b></div>`).join('')||'<div class="crow"><span class="mu">nema stanja</span></div>'}</div>`;
   }
-  $('#l').innerHTML=list.map(x=>{const tg=mok?tagsOf(m,x.items[0].product_id):[],customerNames=[...new Set(x.items.filter(s=>mz||s.stanje!==0).map(s=>mainCustomerLabel(s.customer)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'bs',{numeric:true}));return `<details class="card"><summary class="row"><div><b>${esc(isP?x.k:mainCustomerLabel(x.k))}</b><div class="mu">${mok?tg.length:x.set.size} ${isP?'kupaca':'artikala'} · <span class="in">▼ ${fmt(x.qi)}</span> · <span class="out">▲ ${fmt(x.qo)}</span>${x.last?' · zadnji izlaz '+fd(x.last):''}</div></div>${!mok&&isP?`<div style="flex:1;min-width:0;overflow-wrap:anywhere"><div class="mu">${customerNames.length>1?'Kupci':'Kupac'}</div><b>${esc(customerNames.join(' / ')||'Bez kupca')}</b></div>`:''}<div class="big">${fmt(x.st)}</div></summary>${mok?`<div class="chips" style="flex-wrap:wrap;overflow:visible;margin:8px 0 0;padding-bottom:0">${tg.length?tg.map(c=>`<span class="chip">${esc(c.name)}</span>`).join(''):'<span class="mu">Bez kupca</span>'}</div>`:''}<div class="wrap" style="margin-top:10px"><table><tr>${mok?'<th>Serija</th><th>Status</th>':`<th>${isP?'Kupac':'Proizvod'}</th><th>Serija</th>`}<th class="n">Ulaz</th><th class="n">Izlaz</th><th class="n">Stanje</th></tr>${x.items.filter(s=>mz||s.stanje!==0).sort((a,b)=>b.stanje-a.stanje).map(s=>`<tr>${mok?`<td>${s.serija?esc(s.serija):'—'}</td><td>${s.status==='cekanje'?'<span class="tag">na čekanju</span>':s.status==='kontrola'?'<span class="tag">prekontrolisano</span>':'—'}${s.status==='cekanje'&&s.qty_out?` <span class="tag">škart ${fmt(s.qty_out)}</span>`:''}${s.status==='cekanje'?` <button class="chip" data-pk data-pl="${s.plant_id}" data-cu="${s.customer_id||''}" data-pr="${s.product_id}" data-se="${esc(s.serija||'')}" style="padding:4px 8px;font-size:12px">✔</button>`:''}</td>`:`<td>${esc(isP?mainCustomerLabel(s.customer):s.product)}</td><td>${s.serija?esc(s.serija):'—'}</td>`}<td class="n in">${fmt(s.qty_in)}</td><td class="n out">${fmt(s.qty_out)}</td><td class="n"><b>${fmt(s.stanje)}</b></td></tr>`).join('')}</table></div></details>`}).join('')||'<p class="mu">Nema podataka za ovaj filter.</p>';bind()};
+  $('#l').innerHTML=list.map(x=>{const tg=mok?tagsOf(m,x.items[0].product_id):[],customerNames=[...new Set(x.items.filter(s=>mz||s.stanje!==0).map(s=>mainCustomerLabel(s.customer)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'bs',{numeric:true}));return `<details class="card"><summary class="row"><div><b>${esc(isP?x.k:mainCustomerLabel(x.k))}</b><div class="mu">${mok?tg.length:x.set.size} ${isP?'kupaca':'artikala'} · <span class="in">▼ ${fmt(x.qi)}</span> · <span class="out">▲ ${fmt(x.qo)}</span>${x.last?' · zadnji izlaz '+fd(x.last):''}</div></div>${!mok&&isP?`<div style="flex:1;min-width:0;overflow-wrap:anywhere"><div class="mu">${customerNames.length>1?'Kupci':'Kupac'}</div><b>${esc(customerNames.join(' / ')||'Bez kupca')}</b></div>`:''}<div class="big">${fmt(x.st)}</div></summary>${mok?`<div class="chips" style="flex-wrap:wrap;overflow:visible;margin:8px 0 0;padding-bottom:0">${tg.length?tg.map(c=>`<span class="chip">${esc(c.name)}</span>`).join(''):'<span class="mu">Bez kupca</span>'}</div>`:''}<div class="wrap" style="margin-top:10px"><table><tr>${mok?'<th>Serija</th><th>Status</th>':`<th>${isP?'Kupac':'Proizvod'}</th><th>Serija</th>`}<th class="n">Ulaz</th><th class="n">Izlaz</th><th class="n">Stanje</th></tr>${x.items.filter(s=>mz||s.stanje!==0).sort((a,b)=>b.stanje-a.stanje).map(s=>`<tr>${mok?`<td>${s.serija?esc(s.serija):'—'}</td><td>${s.status==='cekanje'?'<span class="tag">na čekanju</span>':s.status==='kontrola'?'<span class="tag">prekontrolisano</span>':'—'}${s.status==='cekanje'&&s.qty_out?` <span class="tag">škart ${fmt(s.qty_out)}</span>`:''}${s.status==='cekanje'?` <button class="chip" data-pk data-pl="${s.plant_id}" data-cu="${s.customer_id||''}" data-pr="${s.product_id}" data-se="${esc(s.serija||'')}" style="padding:4px 8px;font-size:12px">✔</button>`:''}</td>`:`<td>${esc(isP?mainCustomerLabel(s.customer):s.product)}${!mok&&s.stanje>0?`<div style="margin-top:6px"><button type="button" class="chip" data-tr="${stock.indexOf(s)}">Promijeni kupca</button></div>`:''}</td><td>${s.serija?esc(s.serija):'—'}</td>`}<td class="n in">${fmt(s.qty_in)}</td><td class="n out">${fmt(s.qty_out)}</td><td class="n"><b>${fmt(s.stanje)}</b></td></tr>`).join('')}</table></div></details>`}).join('')||'<p class="mu">Nema podataka za ovaj filter.</p>';bind()};
  $('#mq').oninput=e=>{mq=e.target.value;draw()};
  $('#mz').onchange=e=>{mz=e.target.checked;draw()};
  v.querySelectorAll('[data-mg]').forEach(b=>b.onclick=()=>{mg=b.dataset.mg;vMagacin()});
@@ -780,15 +813,38 @@ function obrisiKontrolu(k){if(!k)return;
 function obrisiSkart(k){if(!k||!k.skart)return;
  if(!confirm(`Obrisati unos škarta od ${fmt(k.skart)} kom?\n\nŠkart se uklanja, a količina se vraća na čekanje.`))return;
  sb.rpc('obrisi_skart',{p_id:k.id}).then(async({error})=>{if(error)return toast(errMsg(error));await loadAll();toast('✅ Škart obrisan');vEvid()})}
+function drawHistoryCalendar(onSelect){
+ const host=$('#history-calendar');if(!host)return;
+ const today=sarajevoDate(),month=historyCalendar.month,date=calendarMonthDate(month),offset=(date.getUTCDay()+6)%7,days=new Date(Date.UTC(date.getUTCFullYear(),date.getUTCMonth()+1,0)).getUTCDate();
+ const selectedStore=mgr()?hf.st:storeId(),totals={};mov.filter(m=>(!selectedStore||m.plant_id===selectedStore)&&m.date?.startsWith(month)).forEach(m=>{const day=totals[m.date]||(totals[m.date]={incoming:0,outgoing:0});day.incoming+=Number(m.qty_in)||0;day.outgoing+=Number(m.qty_out)||0});
+ const title=new Intl.DateTimeFormat('bs-BA',{month:'long',year:'numeric',timeZone:'UTC'}).format(date);
+ host.innerHTML=`<div class="history-calendar-toolbar"><div class="row"><button type="button" class="chip" id="calendar-prev" aria-label="Prethodni mjesec">‹</button><b aria-live="polite">${esc(title)}</b><button type="button" class="chip" id="calendar-next" aria-label="Sljedeći mjesec">›</button></div><div class="row"><button type="button" class="chip" id="calendar-today">Danas · ${fd(today)}</button><button type="button" class="chip" id="calendar-all">Svi datumi</button></div></div>
+ <div class="mu" style="margin-bottom:10px">${esc(selectedStore?plantName(selectedStore):'Svi magacini')} · klikni dan za pregled ulaza i izlaza</div>
+ <div class="history-calendar-grid">${['Pon','Uto','Sri','Čet','Pet','Sub','Ned'].map(day=>`<div class="history-calendar-weekday">${day}</div>`).join('')}${'<div aria-hidden="true"></div>'.repeat(offset)}${Array.from({length:days},(_,i)=>{
+  const key=month+'-'+String(i+1).padStart(2,'0'),sum=totals[key]||{incoming:0,outgoing:0},selected=(!rg.f||key>=rg.f)&&(!rg.t||key<=rg.t)&&(!!rg.f||!!rg.t),label=`${fd(key)} · ulaz ${fmt(sum.incoming)} · izlaz ${fmt(sum.outgoing)}`;
+  return `<button type="button" class="history-calendar-day${key===today?' today':''}${selected?' selected':''}" data-calendar-day="${key}" ${key===today?'aria-current="date"':''} aria-pressed="${selected}" aria-label="${esc(label)}" title="${esc(label)}">${i+1}<span class="history-calendar-indicators">${sum.incoming?'<span class="history-calendar-dot"></span>':''}${sum.outgoing?'<span class="history-calendar-dot outgoing"></span>':''}</span></button>`
+ }).join('')}</div><div class="mu" style="margin-top:10px"><span class="in">● Ulaz</span> · <span class="out">● Izlaz</span> · današnji dan je uokviren</div>`;
+ host.querySelectorAll('[data-calendar-day]').forEach(button=>button.onclick=()=>{historyCalendar.followToday=false;rg.f=rg.t=button.dataset.calendarDay;$('#f').value=rg.f;$('#t').value=rg.t;onSelect()});
+ $('#calendar-prev').onclick=()=>{historyCalendar.month=shiftCalendarMonth(month,-1);drawHistoryCalendar(onSelect)};
+ $('#calendar-next').onclick=()=>{historyCalendar.month=shiftCalendarMonth(month,1);drawHistoryCalendar(onSelect)};
+ $('#calendar-today').onclick=()=>{historyCalendar.followToday=true;historyCalendar.lastToday=today;historyCalendar.month=today.slice(0,7);rg.f=rg.t=today;$('#f').value=today;$('#t').value=today;onSelect()};
+ $('#calendar-all').onclick=()=>{historyCalendar.followToday=false;rg.f=rg.t='';$('#f').value='';$('#t').value='';onSelect()};
+}
+function tickHistoryCalendar(){if(me&&tab==='evid'&&evidMode==='tx'&&refreshHistoryCalendar&&$('#history-calendar'))refreshHistoryCalendar()}
 function vEvid(){applyMokScope();if(evidMode!=='tx')return vKontroleEvid();const mokOnly=!mgr()&&isMok(storeId()),v=$('#v'),pls=[...new Set(mov.map(destOf).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'bs')),op=(val,lab)=>`<option value="${esc(val)}">${esc(lab)}</option>`,sts=stores();
+ const today=sarajevoDate();
+ if(!mgr())hf.st=storeId();
+ if(!historyCalendar.month){historyCalendar.month=(rg.f||today).slice(0,7);historyCalendar.followToday=!rg.f&&!rg.t;if(historyCalendar.followToday)rg.f=rg.t=today;if(mgr()&&!hf.st)hf.st=storeId()}
+ if(historyCalendar.followToday&&historyCalendar.lastToday!==today){rg.f=rg.t=today;historyCalendar.month=today.slice(0,7)}
+ historyCalendar.lastToday=today;
  v.innerHTML=evidTabs()+`<div class="card"><div class="grid3 mok-filter-2"><div><label>Od</label><input id="f" type="date" value="${rg.f}"></div><div><label>Do</label><input id="t" type="date" value="${rg.t}"></div><div class="mok-page-search"><label>Traži</label><input id="q" value="${esc(rg.q)}" placeholder="${mokOnly?'kupac, proizvod, napomena…':'kupac, proizvod, serija, napomena…'}"></div></div>
  <div class="grid3" style="margin-top:2px"><div><label>Kupac</label><select id="fcu">${op('','Svi kupci')}${(mgr()?customers:custFor(storeId())).map(c=>op(c.id,custLabel(c.name)+(mgr()&&c.plant_id?' · '+(plantName(c.plant_id)||''):''))).join('')}</select></div><div><label>Proizvod</label><select id="fpr">${op('','Svi proizvodi')}${(mgr()?products:prodsFor(storeId())).map(p=>op(p.id,p.name+(mgr()&&p.plant_id?' · '+(plantName(p.plant_id)||''):''))).join('')}</select></div><div><label>Odredište</label><select id="fpl">${op('','Sva odredišta')}${pls.map(x=>op(x,x)).join('')}</select></div></div>
- <div class="grid3" style="margin-top:2px">${mgr()?`<div><label>Magacin (odakle)</label><select id="fst">${op('','Svi magacini')}${sts.map(s=>op(s.id,s.name)).join('')}</select></div>`:''}<div><label>Tip</label><select id="fkd">${op('','Sve transakcije')}${op('in','Samo ulazi')}${op('out','Samo izlazi')}</select></div><div style="display:flex;align-items:flex-end;gap:8px"><button class="chip" id="clr" style="flex:1">✕ Očisti filtere</button><button class="chip" id="ex" style="flex:1">⬇ CSV</button></div></div></div><div id="l"></div>`;
+ <div class="grid3" style="margin-top:2px">${mgr()?`<div><label>Magacin (odakle)</label><select id="fst">${op('','Svi magacini')}${sts.map(s=>op(s.id,s.name)).join('')}</select></div>`:''}<div><label>Tip</label><select id="fkd">${op('','Sve transakcije')}${op('in','Samo ulazi')}${op('out','Samo izlazi')}</select></div><div style="display:flex;align-items:flex-end;gap:8px"><button class="chip" id="clr" style="flex:1">✕ Očisti filtere</button><button class="chip" id="ex" style="flex:1">⬇ CSV</button></div></div></div><div class="card" id="history-calendar"></div><div id="l"></div>`;
  $('#fcu').value=hf.cu;$('#fpr').value=hf.pr;$('#fpl').value=hf.pl;$('#fkd').value=hf.kd;if($('#fst'))$('#fst').value=hf.st;
  bindEvidTabs();
  let cur=[];
  const th=(k,l,cls)=>`<th class="${cls||''}"><button class="x" data-s="${k}" style="font:inherit;color:inherit;padding:0;text-align:${cls?'right':'left'}">${l}${srt.k===k?(srt.d>0?' ▲':' ▼'):''}</button></th>`;
- const draw=()=>{const q=rg.q.trim().toLowerCase();
+ const draw=()=>{drawHistoryCalendar(draw);const q=rg.q.trim().toLowerCase();
   let d=mov.filter(m=>inR(m));
   if(hf.cu)d=d.filter(m=>m.customer_id===hf.cu);
   if(hf.pr)d=d.filter(m=>m.product_id===hf.pr);
@@ -803,13 +859,14 @@ function vEvid(){applyMokScope();if(evidMode!=='tx')return vKontroleEvid();const
   ${d.map(m=>`<tr><td style="white-space:nowrap">${fd(m.date)} <span class="mu">${dan(m.date)}</span></td><td>${esc(m.plants?.name||'')}</td><td>${destOf(m)?'<b>'+esc(destOf(m))+'</b>':'<span class="mu">—</span>'}</td><td>${esc(custLabel(m.customers?.name||''))}</td><td>${esc(m.products?.name||'')}${!isMok(m.plant_id)&&m.serija?'<div class="mu">ser. '+esc(m.serija)+'</div>':''}${tg(m)}</td><td class="n in">${m.qty_in?'+'+fmt(m.qty_in):''}</td><td class="n out">${m.qty_out?'−'+fmt(m.qty_out):''}</td><td style="max-width:220px;font-size:13px">${esc(m.note||'')}</td><td style="white-space:nowrap">${act(m)}</td></tr>`).join('')}</table></div>${n?'':'<p class="mu">Nema transakcija za ovaj filter.</p>'}</div>`;
   bind();
   $('#l').querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{const k=b.dataset.s;srt=srt.k===k?{k,d:-srt.d}:{k,d:k==='date'?-1:1};draw()})};
- ['f','t','q'].forEach(i=>$('#'+i).oninput=e=>{rg[i]=e.target.value;draw()});
+ ['f','t','q'].forEach(i=>$('#'+i).oninput=e=>{rg[i]=e.target.value;if(i!=='q'){historyCalendar.followToday=false;if(e.target.value)historyCalendar.month=e.target.value.slice(0,7)}draw()});
  $('#fcu').onchange=e=>{hf.cu=e.target.value;draw()};$('#fpr').onchange=e=>{hf.pr=e.target.value;draw()};
  $('#fpl').onchange=e=>{hf.pl=e.target.value;draw()};$('#fkd').onchange=e=>{hf.kd=e.target.value;draw()};
  const fe=$('#fst');if(fe)fe.onchange=e=>{hf.st=e.target.value;vEvid()};
- $('#clr').onclick=()=>{rg={f:'',t:'',q:''};hf={cu:'',pr:'',pl:'',kd:'',st:''};srt={k:'date',d:-1};vEvid()};
+ $('#clr').onclick=()=>{rg={f:'',t:'',q:''};hf={cu:'',pr:'',pl:'',kd:'',st:hf.st};historyCalendar.followToday=false;srt={k:'date',d:-1};vEvid()};
  $('#ex').onclick=()=>{const head=['Datum','Iz','Odredište','Kupac','Proizvod',...(mokOnly?[]:['Serija']),'Ulaz','Izlaz','Napomena'],rows=cur.map(m=>[m.date,m.plants?.name||'',destOf(m),custLabel(m.customers?.name||''),m.products?.name||'',...(mokOnly?[]:[m.serija||'']),m.qty_in,m.qty_out,m.note||'']),l=[head,...rows];
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+l.map(r=>r.map(y=>`"${String(y??'').replace(/"/g,'""')}"`).join(';')).join('\n')],{type:'text/csv'}));a.download='historija.csv';a.click()};
+ refreshHistoryCalendar=()=>{const next=sarajevoDate();if(next===historyCalendar.lastToday)return;historyCalendar.lastToday=next;if(historyCalendar.followToday){rg.f=rg.t=next;historyCalendar.month=next.slice(0,7);$('#f').value=next;$('#t').value=next}draw()};
  draw()}
 function vGroup(dim){const v=$('#v'),cols={plant:['customer','product','serija'],customer:['plant','product','serija'],product:['plant','customer','serija']}[dim];
  const ok=s=>zero||s.stanje!==0,keys=[...new Set(stock.filter(ok).map(s=>s[dim]))].sort(),tot=k=>stock.filter(s=>s[dim]===k).reduce((a,s)=>a+s.stanje,0);
@@ -828,5 +885,8 @@ function vOtprema(){const v=$('#v');
  const draw=()=>{const d=mov.filter(m=>(m.kind==='otprema'||m.kind==='izlaz')&&inR(m)),tot=d.reduce((a,m)=>a+m.qty_out,0);
   $('#l').innerHTML=`<div class="card hero"><div class="mu">IZLAZI I OTPREMA</div><div class="huge">${fmt(tot)} <small>kom</small></div></div>`+(d.map(m=>`<div class="card"><div class="row"><div><b>${fd(m.date)}</b> · ${esc(m.plants?.name||'')}<div class="mu">${esc(m.customers?.name||'')} · ${esc(m.products?.name||'')}${m.serija?' · '+esc(m.serija):''}${m.kind==='izlaz'?' · <span class="tag">izlaz</span>':''}${m.note?`<div>${esc(m.note)}</div>`:''}</div></div><div><span class="big out">${fmt(m.qty_out)}</span>${act(m)}</div></div></div>`).join('')||'<p class="mu">Nema izlaza u odabranom periodu.</p>');bind()};
  ['f','t'].forEach(i=>$('#'+i).onchange=e=>{rg[i]=e.target.value;draw()});draw()}
+setInterval(tickHistoryCalendar,30000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)tickHistoryCalendar()});
+window.addEventListener('focus',tickHistoryCalendar);
 sb.auth.onAuthStateChange(e=>{if(e==='SIGNED_OUT')authView()});init();
 </script></body></html>

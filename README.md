@@ -18,6 +18,12 @@
 6. Provjera: `select email, role from profiles;` → Senad = upravnik, Belmin = vodja (glavni magacin), Elmir = vodja (Pogon MOK), admin = admin. Provjeri i `select name, is_store from plants;` i `select c.name, pl.name as magacin from customers c left join plants pl on pl.id=c.plant_id order by 1;` (Kupci MOK-a moraju imati `Pogon MOK`, a glavni `null`/glavni magacin).
 
 ## 2. Aplikacija
+
+Za promjenu kupca iz pregleda **Magacin** pokreni `migracija_promjena_kupca.sql` u Supabase SQL Editoru, nakon `migracija_razdvajanje.sql`. Skripta je idempotentna, omogućava prebacivanje robe i upravniku, te provjerava raspoloživu količinu i pripadnost kupaca magacinu. U proširenoj kartici proizvoda klikni **Promijeni kupca**, odaberi kupca i cijelu količinu ili dio. Prebacivanje se bilježi u historiji, a ukupno stanje magacina ostaje isto. Kod MOK-a kupci i dalje predstavljaju oznake proizvoda.
+
+**Historija → Transakcije** ima mjesečni kalendar za oba magacina. Odaberi magacin i klikni datum za njegove ulaze/izlaze tog dana. Dugme **Danas** prati današnji datum po vremenu `Europe/Sarajevo`, uključujući promjenu dana dok je aplikacija otvorena; **Svi datumi** uklanja datumski filter. Postojeći filteri perioda i CSV izvoz ostaju dostupni.
+
+Provjere bez dodatnih JavaScript zavisnosti: `node --test tests/history-transfer.test.cjs`. SQL integracijski test `tests/transfer-stock.sql` pokreće se isključivo u praznoj, privremenoj PostgreSQL bazi, nikad u aplikacijskoj bazi.
 U `index.html` su na vrhu `SUPABASE_URL` i `SUPABASE_KEY` (Project Settings → API → publishable/anon key). Provjeri da odgovaraju projektu.
 
 Vođa (k.belmin) vidi tab **Magacin** i radi u **Glavnom magacinu**:
