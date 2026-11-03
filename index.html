@@ -120,7 +120,11 @@ body.mok .chip.on{box-shadow:0 8px 20px -12px var(--pr)}
 body.mok .btn{box-shadow:0 14px 26px -16px var(--pr)}
 body.mok .tag{background:color-mix(in srgb,var(--pr) 9%,var(--card));border-color:color-mix(in srgb,var(--pr) 22%,var(--br))}
 body.mok .mok-badge{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#ffffff2e;border:1px solid #ffffff3d;font-size:10px;font-weight:800;letter-spacing:.12em;vertical-align:2px}
-body.mok .moktop{display:contents}
+.app-top{position:sticky;top:0;z-index:5;background:var(--card);box-shadow:0 8px 24px -16px #032e294d}
+.app-top header{position:static}
+.app-top nav{position:static;inset:auto;width:100%;max-width:980px;margin:0 auto;border:0;border-top:1px solid var(--br);border-radius:0;padding-bottom:0}
+.app-top+main{padding-bottom:max(24px,env(safe-area-inset-bottom))}
+body.mok .moktop{display:flex;flex-direction:column}
 body.mok .mok-search{display:none;align-items:center;flex-wrap:wrap;gap:8px;margin:0 auto;width:min(980px,100%);padding:0 16px 12px}
 body.mok .mok-search input{flex:1;min-width:0;width:auto}
 body.mok .mok-search-marks{display:flex;gap:8px;margin-top:8px}
@@ -331,7 +335,7 @@ const tabs=()=>adm()?[['magacin','📦','Magacin'],['evid','🗓','Historija'],[
 function shell(){const mokView=isMokView();document.body.classList.toggle('mok',mokView);
  const head=`<header><div><b class="brand-title"><img class="hlogo" src="logo.png" alt="Pobjeda-Rudet" onerror="this.style.display='none'"><span class="brand-name">Magacin${mokView?'<span class="mok-badge">MOK</span>':''}</span></b><small>${esc(me.full_name||me.email)} · ${adm()?'Admin':up()?'Upravnik':esc(myStore?.name||'Magacin')}</small></div><button id="lo">Odjava</button></header>`;
  const nav=`<nav>${tabs().map(t=>`<button data-t="${t[0]}" class="${t[0]===tab?'on':''}"><span>${t[1]}</span>${t[2]}</button>`).join('')}</nav>`;
- root.innerHTML=mokView?`<div class="moktop">${head}${nav}<div class="mok-search"><span class="mok-search-ico">🔎</span><input id="moktopq" placeholder="Traži proizvod, kupca ili šifru…" autocomplete="off"><div id="moktopmarks" class="mok-search-marks" hidden>${mokSearchMarks('moktopq')}</div></div></div><main id="v"></main>`:`${head}<main id="v"></main>${nav}`;
+ root.innerHTML=mokView?`<div class="app-top moktop">${head}${nav}<div class="mok-search"><span class="mok-search-ico">🔎</span><input id="moktopq" placeholder="Traži proizvod, kupca ili šifru…" autocomplete="off"><div id="moktopmarks" class="mok-search-marks" hidden>${mokSearchMarks('moktopq')}</div></div></div><main id="v"></main>`:`<div class="app-top">${head}${nav}</div><main id="v"></main>`;
  $('#lo').onclick=async()=>{await sb.auth.signOut();me=null;authView()};
  const si=$('#moktopq');if(si)si.oninput=()=>{const t=mokSearchEl();if(t){t.value=si.value;t.dispatchEvent(new Event('input',{bubbles:true}))}};
  const mv=$('#v');if(mv)mv.addEventListener('input',e=>{if(e.target.id==='mokq'||e.target.id==='q'){const i=$('#moktopq');if(i&&document.activeElement!==i)i.value=e.target.value}});
