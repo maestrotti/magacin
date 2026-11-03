@@ -105,7 +105,12 @@ body.mok .btn{box-shadow:0 14px 26px -16px var(--pr)}
 body.mok .tag{background:color-mix(in srgb,var(--pr) 9%,var(--card));border-color:color-mix(in srgb,var(--pr) 22%,var(--br))}
 body.mok .mok-badge{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#ffffff2e;border:1px solid #ffffff3d;font-size:10px;font-weight:800;letter-spacing:.12em;vertical-align:2px}
 body.mok .moktop{display:contents}
-body.mok .mok-search{display:none;align-items:center;gap:8px;margin:0 auto;width:min(980px,100%);padding:0 16px 12px}
+body.mok .mok-search{display:none;align-items:center;flex-wrap:wrap;gap:8px;margin:0 auto;width:min(980px,100%);padding:0 16px 12px}
+body.mok .mok-search input{flex:1;min-width:0;width:auto}
+body.mok .mok-search-marks{display:flex;gap:8px;margin-top:8px}
+body.mok #moktopmarks{width:100%;padding-left:25px;margin-top:0}
+body.mok #moktopmarks[hidden]{display:none}
+body.mok #moktopmarks button{background:#ffffff1f;border-color:#ffffff55;color:#fff}
 body.mok .mok-search input{background:#ffffff1f;border:1px solid #ffffff33;color:#fff;border-radius:12px;padding:11px 14px;box-shadow:inset 0 1px 0 #ffffff1f}
 body.mok .mok-search input::placeholder{color:#ffffffa8}
 body.mok .mok-search .mok-search-ico{opacity:.85;font-size:17px;line-height:1}
@@ -202,7 +207,6 @@ const noBase=s=>{const t=noMark(s),m=t.match(/(?:^|[^a-z0-9])no\s*\.?\s*\d+/i);r
 const prodCmp=(a,b)=>{const A=String(a??''),B=String(b??''),na=noNum(A),nb=noNum(B);
  if(na!=null&&nb!=null){const c=noBase(A).localeCompare(noBase(B),'bs',{numeric:true,sensitivity:'base'});if(c)return c;if(na!==nb)return na-nb}
  return A.localeCompare(B,'bs',{numeric:true,sensitivity:'base'})};
-const mokFilters={no:{active:false,value:''},fi:{active:false,value:''}};
 const mokNumericMatch=(name,kind,value)=>{
  const pattern=kind==='no'?/(?:^|[^a-z0-9])no\s*\.?\s*(\d+(?:[.,]\d+)?)/gi:/(?:[⊘⌀ØøΦφ]|(?:^|[^a-z0-9])fi)\s*(\d+(?:[.,]\d+)?)/gi;
  const numbers=[...noMark(name).matchAll(pattern)].map(m=>Number(m[1].replace(',','.')));
@@ -210,18 +214,17 @@ const mokNumericMatch=(name,kind,value)=>{
  return query===''?numbers.length>0:/^\d+(?:[.,]\d+)?$/.test(query)&&numbers.includes(Number(query.replace(',','.')));
 };
 function mokMatches(name,customers=''){
- if(!Object.entries(mokFilters).every(([kind,f])=>!f.active||mokNumericMatch(name,kind,f.value)))return false;
  let numbersMatch=true;
- const text=noMark(mokq).replace(/(?:^|\s)no\s*\.?\s*(\d+(?:[.,]\d+)?)/gi,(token,value)=>{if(!mokNumericMatch(name,'no',value))numbersMatch=false;return ' '});
+ const text=noMark(mokq).replace(/(?:^|\s)(no|fi|[⊘⌀ØøΦφ])(?=\s|\.|\d|$)\s*\.?\s*(\d+(?:[.,]\d+)?)?/gi,(token,mark,value)=>{if(!mokNumericMatch(name,mark.toLowerCase()==='no'?'no':'fi',value||''))numbersMatch=false;return ' '});
  return numbersMatch&&kwMatch(name+' '+customers,text);
 }
-function mokFilterFields(){return `<div class="mok-page-search" style="margin-top:12px"><label for="mokq">Traži proizvod ili kupca</label><input id="mokq" value="${esc(mokq)}" placeholder="proizvod, kupac, No2…"></div><div class="row" style="margin-top:10px;flex-wrap:wrap">${[['no','Nº'],['fi','⊘']].map(([kind,label])=>`<div><button type="button" class="chip ${mokFilters[kind].active?'on':''}" data-mok-filter="${kind}" aria-pressed="${mokFilters[kind].active}">${label}</button><input id="mok-filter-${kind}" aria-label="${kind==='no'?'Broj proizvoda':'FI vrijednost'}" inputmode="decimal" placeholder="${kind==='no'?'Tačan broj, npr. 2':'Tačan FI, npr. 9,5'}" value="${esc(mokFilters[kind].value)}" ${mokFilters[kind].active?'':'hidden'} style="margin-top:6px"></div>`).join('')}</div>`}
+const mokSearchMarks=target=>`<button type="button" class="chip" data-mok-search-mark="${NO}" data-search-target="${target}" aria-label="Dodaj oznaku broja u pretragu">${NO}</button><button type="button" class="chip" data-mok-search-mark="${FI}" data-search-target="${target}" aria-label="Dodaj FI oznaku u pretragu">${FI}</button>`;
+function mokFilterFields(){return `<div class="mok-page-search" style="margin-top:12px"><label for="mokq">Traži proizvod ili kupca</label><input id="mokq" value="${esc(mokq)}" placeholder="proizvod, kupac, Nº2, ⊘9,5…"><div class="mok-search-marks">${mokSearchMarks('mokq')}</div></div>`}
 function bindMokFilters(draw){
  $('#mokq').oninput=e=>{mokq=e.target.value;draw()};
- document.querySelectorAll('[data-mok-filter]').forEach(button=>{
-  const kind=button.dataset.mokFilter,input=$('#mok-filter-'+kind),filter=mokFilters[kind];
-  button.onclick=()=>{filter.active=!filter.active;button.classList.toggle('on',filter.active);button.setAttribute('aria-pressed',String(filter.active));input.hidden=!filter.active;if(filter.active)input.focus();draw()};
-  input.oninput=()=>{filter.value=input.value;draw()};
+ document.querySelectorAll('[data-mok-search-mark]').forEach(button=>{
+  button.onmousedown=e=>e.preventDefault();
+  button.onclick=()=>addMark($('#'+button.dataset.searchTarget),button.dataset.mokSearchMark);
  });
 }
 function addMark(el,sym){if(!el)return;const a=el.selectionStart??el.value.length,b=el.selectionEnd??a,pre=el.value.slice(0,a),post=el.value.slice(b),
@@ -307,14 +310,14 @@ const tabs=()=>adm()?[['magacin','📦','Magacin'],['evid','🗓','Historija'],[
 function shell(){const mokView=isMokView();document.body.classList.toggle('mok',mokView);
  const head=`<header><div><b><img class="hlogo" src="logo.png" alt="" onerror="this.style.display='none'">Magacin${mokView?'<span class="mok-badge">MOK</span>':''}</b><small>${esc(me.full_name||me.email)} · ${adm()?'Admin':up()?'Upravnik':esc(myStore?.name||'Magacin')}</small></div><button id="lo">Odjava</button></header>`;
  const nav=`<nav>${tabs().map(t=>`<button data-t="${t[0]}" class="${t[0]===tab?'on':''}"><span>${t[1]}</span>${t[2]}</button>`).join('')}</nav>`;
- root.innerHTML=mokView?`<div class="moktop">${head}${nav}<div class="mok-search"><span class="mok-search-ico">🔎</span><input id="moktopq" placeholder="Traži proizvod, kupca ili šifru…" autocomplete="off"></div></div><main id="v"></main>`:`${head}<main id="v"></main>${nav}`;
+ root.innerHTML=mokView?`<div class="moktop">${head}${nav}<div class="mok-search"><span class="mok-search-ico">🔎</span><input id="moktopq" placeholder="Traži proizvod, kupca ili šifru…" autocomplete="off"><div id="moktopmarks" class="mok-search-marks" hidden>${mokSearchMarks('moktopq')}</div></div></div><main id="v"></main>`:`${head}<main id="v"></main>${nav}`;
  $('#lo').onclick=async()=>{await sb.auth.signOut();me=null;authView()};
  const si=$('#moktopq');if(si)si.oninput=()=>{const t=mokSearchEl();if(t){t.value=si.value;t.dispatchEvent(new Event('input',{bubbles:true}))}};
  const mv=$('#v');if(mv)mv.addEventListener('input',e=>{if(e.target.id==='mokq'||e.target.id==='q'){const i=$('#moktopq');if(i&&document.activeElement!==i)i.value=e.target.value}});
  document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;shell()});view();syncMokTopSearch()}
 const view=()=>{applyMokScope();return ({unos:vUnos,stanje:vStanje,magacin:vMagacin,evid:vEvid,admin:vAdmin,pogoni:()=>vGroup('plant'),kupci:()=>vGroup('customer'),proizvodi:()=>vGroup('product'),otprema:vOtprema})[tab]()};
 const mokSearchEl=()=>document.querySelector('#mokq')||document.querySelector('#q');
-function syncMokTopSearch(){const w=document.querySelector('.mok-search'),i=$('#moktopq'),t=mokSearchEl();if(!w||!i)return;const on=!!t&&document.body.classList.contains('mok');w.classList.toggle('on',on);if(t){i.disabled=false;i.placeholder=t.placeholder||'Traži…';if(document.activeElement!==i)i.value=t.value}else{i.value=''}}
+function syncMokTopSearch(){const w=document.querySelector('.mok-search'),i=$('#moktopq'),t=mokSearchEl();if(!w||!i)return;const on=!!t&&document.body.classList.contains('mok');w.classList.toggle('on',on);const marks=$('#moktopmarks');if(marks)marks.hidden=!on||t?.id!=='mokq';if(t){i.disabled=false;i.placeholder=t.placeholder||'Traži…';if(document.activeElement!==i)i.value=t.value}else{i.value=''}}
 const same=(s,m)=>m.plant_id===s.plant_id&&m.customer_id===s.customer_id&&m.product_id===s.product_id&&(m.serija||'')===s.serija;
 const inR=m=>(!rg.f||m.date>=rg.f)&&(!rg.t||m.date<=rg.t);
 const stores=()=>{const s=plants.filter(p=>p.is_store);return (s.length?s:plants.filter(p=>p.is_main)).sort((a,b)=>(b.is_main?1:0)-(a.is_main?1:0)||String(a.name).localeCompare(String(b.name),'bs'))},
